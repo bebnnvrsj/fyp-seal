@@ -1,20 +1,21 @@
 <?php
 session_start();
+// Sekatan Keselamatan: Hanya benarkan Admin mengakses halaman ini
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../login/login.php");
     exit();
 }
 require '../db_connect.php'; 
 
-// 1. GET THE USER ID FROM THE URL
+// 1. SEMAK PARAMETER ID DARIPADA URL
 if (!isset($_GET['id'])) {
     header("Location: user_management.php");
     exit();
 }
 
-$id = $_GET['id'];
+$id = intval($_GET['id']);
 
-// 2. FETCH CURRENT DATA FOR THIS USER
+// 2. AMBIL DATA SEMASA PENGGUNA TERSEBUT
 $sql = "SELECT * FROM users WHERE userID = ?";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("i", $id);
@@ -32,9 +33,10 @@ if (!$user) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit User - SEAL</title>
+    <title>Edit System User - SEAL</title>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <style>
         :root {
@@ -42,6 +44,7 @@ if (!$user) {
             --header-bg: #2b7a9e;
             --main-bg: linear-gradient(to bottom, #caf0f8, #90e0ef, #48cae4);
             --dark-blue: #183055;
+            --success-green: #28a745;
         }
 
         body {
@@ -53,7 +56,7 @@ if (!$user) {
             overflow-x: hidden;
         }
 
-        /* ====== SIDEBAR (Consistent with portal) ====== */
+        /* ====== SIDEBAR ====== */
         .sidebar { width: var(--sidebar-width); height: 100vh; background-color: var(--dark-blue); color: white; position: fixed; left: 0; top: 0; transition: transform 0.3s ease; z-index: 1000; display: flex; flex-direction: column; }
         .sidebar.closed { transform: translateX(-100%); }
         .sidebar-header { padding: 20px; background-color: #122542; display: flex; align-items: center; gap: 15px; font-weight: bold; }
@@ -65,75 +68,134 @@ if (!$user) {
         /* ====== MAIN WRAPPER ====== */
         .main-wrapper { flex: 1; display: flex; flex-direction: column; margin-left: var(--sidebar-width); transition: margin-left 0.3s ease; width: 100%; }
         .main-wrapper.full-width { margin-left: 0; }
-
         .header { height: 56px; background-color: var(--header-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         .toggle-btn { cursor: pointer; font-size: 20px; }
 
-        /* ====== CONTAINER (Stretched Layout) ====== */
-        .container { 
-            width: 95%; 
-            max-width: 1200px; 
-            margin: 30px auto; 
-            padding: 0 20px; 
-            display: flex; 
-            flex-direction: column; 
-            gap: 25px; 
-        }
-
-        /* Page Hero */
-        .page-hero {
+        /* ====== CONTAINER & FORM CARD ====== */
+        .container { width: 95%; max-width: 750px; margin: 40px auto; padding: 0 20px; box-sizing: border-box; }
+        
+        .form-card {
             background: white;
             border-radius: 15px;
-            padding: 25px 35px;
+            padding: 35px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            animation: fadeIn 0.4s ease;
+        }
+
+        .form-card h2 { 
+            margin-top: 0; 
+            color: var(--dark-blue); 
+            font-size: 22px; 
+            border-bottom: 2px solid #f0f4f8; 
+            padding-bottom: 15px; 
+            margin-bottom: 25px;
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            gap: 12px;
         }
 
-        .hero-info h1 { margin: 0; color: var(--dark-blue); font-size: 24px; }
-        .hero-info p { margin: 5px 0 0; color: #666; font-size: 14px; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* Form Card */
-        .form-card { 
-            background: #ffffff; 
-            border-radius: 15px; 
-            padding: 40px; 
-            box-shadow: 0px 4px 15px rgba(0,0,0,0.1); 
-        }
-
+        /* ====== FORM CONTROLS ====== */
         .form-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 20px;
-            text-align: left;
         }
 
-        .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 8px; }
-
-        input, select {
-            width: 100%; padding: 12px;
-            border-radius: 10px; border: 1px solid #ddd; font-size: 14px; box-sizing: border-box;
-            background: #fcfcfc;
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
         }
-        input:focus, select:focus { outline: none; border-color: var(--header-bg); background: #fff; }
 
-        .update-btn {
-            background-color: var(--header-bg); color: white; border: none;
-            padding: 14px 0; width: 100%; font-size: 16px;
-            border-radius: 8px; cursor: pointer; font-weight: 600; margin-top: 20px;
-            transition: 0.3s;
-        }
-        .update-btn:hover { background-color: var(--dark-blue); transform: translateY(-2px); }
-
-        #mmc_container { grid-column: span 2; display: <?php echo ($user['role'] == 'doctor') ? 'block' : 'none'; ?>; }
         .full-width-group { grid-column: span 2; }
 
-        @media (max-width: 850px) {
+        .form-group label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #4a5568;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+
+        .input-wrapper i {
+            position: absolute;
+            left: 15px;
+            color: #a0aec0;
+            font-size: 16px;
+            z-index: 5;
+        }
+
+        .input-wrapper input, .input-wrapper select {
+            width: 100%;
+            padding: 12px 15px 12px 45px;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            font-size: 14px;
+            outline: none;
+            box-sizing: border-box;
+            transition: all 0.2s ease;
+            color: #334155;
+            background: #ffffff;
+        }
+
+        .input-wrapper input:focus, .input-wrapper select:focus {
+            border-color: var(--header-bg);
+            box-shadow: 0 0 0 3px rgba(43, 122, 158, 0.15);
+        }
+
+        #mmc_container { display: <?php echo (strtolower($user['role']) == 'doctor') ? 'flex' : 'none'; ?>; }
+
+        /* ====== BUTTON ACTIONS ====== */
+        .btn-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+            border-top: 1px solid #f0f4f8;
+            padding-top: 20px;
+            grid-column: span 2;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 13px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .btn-save {
+            background-color: var(--success-green);
+            color: white;
+            box-shadow: 0 4px 6px rgba(40, 167, 69, 0.2);
+        }
+        .btn-save:hover { background-color: #218838; transform: translateY(-1px); }
+
+        .btn-cancel {
+            background-color: #e2e8f0;
+            color: #475569;
+        }
+        .btn-cancel:hover { background-color: #cbd5e1; }
+
+        @media (max-width: 768px) {
             .form-grid { grid-template-columns: 1fr; }
-            #mmc_container, .full-width-group { grid-column: span 1; }
-            .page-hero { flex-direction: column; text-align: center; gap: 15px; }
+            .full-width-group, .btn-group { grid-column: span 1; }
         }
     </style>
 </head>
@@ -146,7 +208,6 @@ if (!$user) {
         <li><a href="user_management.php" class="active"><i class="fa-solid fa-users-gear"></i> User Management</a></li>
         <li><a href="document_monitoring.php"><i class="fa-solid fa-file-shield"></i> Doc Monitoring</a></li>
         <li><a href="audit_logs.php"><i class="fa-solid fa-clipboard-list"></i> Audit Logs</a></li>
-        <li><a href="activity_reports.php"><i class="fa-solid fa-chart-pie"></i> Activity Reports</a></li>
         <li><a href="../profile.php"><i class="fa-solid fa-user-gear"></i> Profile Settings</a></li>
         <li><a href="../login/logout.php"><i class="fa-solid fa-right-from-bracket"></i> Logout</a></li>
     </ul>
@@ -161,58 +222,71 @@ if (!$user) {
     </div>
 
     <div class="container">
-        <div class="page-hero">
-            <div class="hero-info">
-                <h1><i class="fa-solid fa-user-pen"></i> Edit User Account</h1>
-                <p>Modify system permissions and professional details for <strong><?php echo htmlspecialchars($user['name']); ?></strong>.</p>
-            </div>
-            <a href="user_management.php" style="color: var(--header-bg); text-decoration: none; font-weight: 600;">
-                <i class="fa-solid fa-arrow-left"></i> Back to Management
-            </a>
-        </div>
-
         <div class="form-card">
-            <form action="updateuser_process.php" method="POST">
+            <h2><i class="fa-solid fa-user-pen" style="color: var(--header-bg);"></i> Modify System User</h2>
+
+            <form action="updateuser_process.php" method="POST" id="updateUserForm">
                 <input type="hidden" name="userID" value="<?php echo $user['userID']; ?>">
 
                 <div class="form-grid">
                     <div class="form-group">
                         <label>Full Name</label>
-                        <input type="text" name="name" value="<?php echo htmlspecialchars($user['name']); ?>" required>
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-user"></i>
+                            <input type="text" name="name" value="<?php echo htmlspecialchars($user['name']); ?>" required>
+                        </div>
                     </div>
 
                     <div class="form-group">
                         <label>Username (Email)</label>
-                        <input type="email" name="username" value="<?php echo htmlspecialchars($user['username']); ?>" required>
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-envelope"></i>
+                            <input type="email" name="username" value="<?php echo htmlspecialchars($user['username']); ?>" required>
+                        </div>
                     </div>
 
                     <div class="form-group">
                         <label>Phone Number</label>
-                        <input type="text" name="phone_number" value="<?php echo htmlspecialchars($user['phone_number']); ?>" required>
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-phone"></i>
+                            <input type="text" name="phone_number" value="<?php echo htmlspecialchars($user['phone_number']); ?>" required>
+                        </div>
                     </div>
 
                     <div class="form-group">
-                        <label>Staff Number</label>
-                        <input type="text" name="staff_number" value="<?php echo htmlspecialchars($user['staff_number']); ?>" required>
+                        <label>Staff ID Number</label>
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-address-card"></i>
+                            <input type="text" name="staff_number" value="<?php echo htmlspecialchars($user['staff_number']); ?>" oninput="this.value = this.value.toUpperCase()" required>
+                        </div>
                     </div>
 
                     <div class="full-width-group form-group">
-                        <label>System Role</label>
-                        <select name="role" id="roleSelect" required onchange="toggleMMC()">
-                            <option value="doctor" <?php if($user['role'] == 'doctor') echo 'selected'; ?>>Doctor</option>
-                            <option value="verifier" <?php if($user['role'] == 'verifier') echo 'selected'; ?>>Verifier</option>
-                            <option value="admin" <?php if($user['role'] == 'admin') echo 'selected'; ?>>Administrator</option>
-                        </select>
+                        <label>System Role Permission</label>
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-user-gear"></i>
+                            <select name="role" id="roleSelect" required onchange="toggleMMC()">
+                                <option value="doctor" <?php if(strtolower($user['role']) == 'doctor') echo 'selected'; ?>>Doctor</option>
+                                <option value="verifier" <?php if(strtolower($user['role']) == 'verifier') echo 'selected'; ?>>Verifier</option>
+                                <option value="admin" <?php if(strtolower($user['role']) == 'admin') echo 'selected'; ?>>Administrator</option>
+                            </select>
+                        </div>
                     </div>
 
-                    <div id="mmc_container" class="form-group">
-                        <label>MMC Number (Required for Doctors)</label>
-                        <input type="text" name="mmc_number" id="mmc_input" value="<?php echo htmlspecialchars($user['mmc_number']); ?>" 
-                        placeholder="Enter 7-digit MMC Number" maxlength="100">
+                    <div id="mmc_container" class="full-width-group form-group">
+                        <label>MMC Registration Number (Required for Doctors)</label>
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-file-medical"></i>
+                            <input type="text" name="mmc_number" id="mmc_input" value="<?php echo htmlspecialchars($user['mmc_number'] ?? ''); ?>" 
+                            placeholder="Enter official 7-digit MMC Register Code" maxlength="100" <?php if(strtolower($user['role']) == 'doctor') echo 'required'; ?>>
+                        </div>
+                    </div>
+
+                    <div class="btn-group">
+                        <a href="user_management.php" class="btn btn-cancel"><i class="fa-solid fa-arrow-left"></i> Cancel</a>
+                        <button type="submit" class="btn btn-save"><i class="fa-solid fa-floppy-disk"></i> Save Account Changes</button>
                     </div>
                 </div>
-
-                <button type="submit" class="update-btn">Save Account Changes</button>
             </form>
         </div>
     </div>
@@ -227,12 +301,12 @@ if (!$user) {
     }
 
     function toggleMMC() {
-        var role = document.getElementById("roleSelect").value;
+        var role = document.getElementById("roleSelect").value.toLowerCase();
         var mmcContainer = document.getElementById("mmc_container");
         var mmcInput = document.getElementById("mmc_input");
 
         if (role === "doctor") {
-            mmcContainer.style.display = "block";
+            mmcContainer.style.display = "flex";
             mmcInput.setAttribute("required", "required");
         } else {
             mmcContainer.style.display = "none";
@@ -240,6 +314,26 @@ if (!$user) {
             mmcInput.value = ""; 
         }
     }
+
+    // Intersep Borang Dengan Animasi Konfirmasi SweetAlert2
+    document.getElementById('updateUserForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        Swal.fire({
+            title: 'Commit Changes?',
+            text: "Are you sure you want to update this system user's configurations and roles?",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#28a745',
+            cancelButtonColor: '#6e7881',
+            confirmButtonText: 'Yes, save changes!',
+            borderRadius: '12px'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                this.submit();
+            }
+        });
+    });
 </script>
 
 </body>

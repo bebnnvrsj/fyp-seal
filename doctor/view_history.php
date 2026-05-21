@@ -1,7 +1,8 @@
 <?php
 date_default_timezone_set('Asia/Kuala_Lumpur');
-
 session_start();
+
+// Sekatan keselamatan portal doktor
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'doctor') {
     header("Location: ../login.php");
     exit();
@@ -12,16 +13,14 @@ require '../db_connect.php';
 $doctorID = $_SESSION['userID'];
 $doctor_name = isset($_SESSION['name']) ? $_SESSION['name'] : 'Doctor';
 
-function getDisplayStatus($status, $expiryDate) {
-    if (strtolower($status) == 'revoked') return 'Revoked';
-    // Bandingkan tarikh hari ini (00:00:00) dengan tarikh luput (00:00:00)
-    $today = strtotime(date("Y-m-d"));
-    $expiry = strtotime($expiryDate);
-    
-    if ($expiry < $today) return 'Expired';   
-        return $status;
+// ─── DIBAIKI: KEPUTUSAN STATUS IKUT ARAHAN SV (TIADA EXPIRED BAGI REKOD SAH) ───
+function getDisplayStatus($status) {
+    $statusUpper = strtoupper(trim($status));
+    if ($statusUpper == 'REVOKED') return 'Revoked';
+    return 'Active'; // Dokumen yang sah akan kekal Active sebagai rekod sejarah tulen
 }
-//combine both table mc and timeslip
+
+// Combine both table mc and timeslip
 $sql = "SELECT * FROM (
             SELECT mcID AS docID, patientName, 'MC' AS documentType, startDate AS issueDate, endDate AS expiryDate, status 
             FROM mc 
@@ -52,6 +51,8 @@ $result = $stmt->get_result();
             --header-bg: #2b7a9e;
             --main-bg: linear-gradient(to bottom, #caf0f8, #90e0ef, #48cae4);
             --dark-blue: #183055;
+            --success-green: #28a745;
+            --danger-red: #dc3545;
         }
 
         body {
@@ -63,7 +64,7 @@ $result = $stmt->get_result();
             overflow-x: hidden;
         }
 
-        /* ====== SIDEBAR (Consistent with portal) ====== */
+        /* ====== SIDEBAR ====== */
         .sidebar { width: var(--sidebar-width); height: 100vh; background-color: var(--dark-blue); color: white; position: fixed; left: 0; top: 0; transition: transform 0.3s ease; z-index: 1000; display: flex; flex-direction: column; }
         .sidebar.closed { transform: translateX(-100%); }
         .sidebar-header { padding: 20px; background-color: #122542; display: flex; align-items: center; gap: 15px; font-weight: bold; }
@@ -72,7 +73,6 @@ $result = $stmt->get_result();
         .sidebar-menu li a:hover { background-color: #2b7a9e; color: white; }
         .sidebar-menu li a.active { background-color: #2b7a9e; color: white; border-left: 4px solid #fff; }
 
-        /* ====== SUBMENU HOVER ====== */
         .has-submenu { position: relative; }
         .submenu { list-style: none; padding: 0; margin: 0; max-height: 0; overflow: hidden; background-color: #122542; transition: max-height 0.4s ease-out; }
         .has-submenu:hover .submenu { max-height: 200px; }
@@ -83,55 +83,57 @@ $result = $stmt->get_result();
         /* ====== MAIN WRAPPER ====== */
         .main-wrapper { flex: 1; display: flex; flex-direction: column; margin-left: var(--sidebar-width); transition: margin-left 0.3s ease; width: 100%; }
         .main-wrapper.full-width { margin-left: 0; }
-
         .header { height: 56px; background-color: var(--header-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         .toggle-btn { cursor: pointer; font-size: 20px; }
 
-        /* ====== CONTAINER (Stretched Layout) ====== */
-        .container { 
-            width: 95%; 
-            max-width: 1600px; 
-            margin: 30px auto; 
-            padding: 0 20px; 
-            display: flex; 
-            flex-direction: column; 
-            gap: 25px; 
-        }
+        /* ====== CONTAINER & CARDS ====== */
+        .container { width: 95%; max-width: 100%; margin: 30px auto; padding: 0 40px; box-sizing: border-box; display: flex; flex-direction: column; gap: 25px; }
 
         .page-hero {
-            background: white; border-radius: 15px; padding: 35px;
-            display: flex; align-items: center; gap: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            background: white; border-radius: 15px; padding: 25px 35px;
+            display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
+        .hero-info h1 { margin: 0; color: var(--dark-blue); font-size: 24px; display: flex; align-items: center; gap: 12px; }
+        .hero-info p { margin: 5px 0 0; color: #666; font-size: 14px; }
 
-        .hero-text h1 { margin: 0; color: var(--dark-blue); font-size: 28px; }
-        .hero-text p { margin: 5px 0; color: #666; font-size: 15px; }
-
-        /* Search Bar Style */
-        .search-container { display: flex; justify-content: flex-start; }
-        .search-box { position: relative; width: 350px; }
-        .search-box input {
+        /* Search Controls Bar */
+        .actions-bar { display: flex; justify-content: flex-start; align-items: center; }
+        .search-wrapper { position: relative; width: 350px; }
+        .search-wrapper input {
             width: 100%; padding: 12px 15px 12px 45px;
-            border-radius: 10px; border: 1px solid #ddd; outline: none;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            border-radius: 10px; border: 1px solid #cbd5e1; outline: none;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05); font-size: 14px; transition: 0.2s;
         }
-        .search-box i { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #888; }
+        .search-wrapper input:focus { border-color: var(--header-bg); box-shadow: 0 0 0 3px rgba(43, 122, 158, 0.15); }
+        .search-wrapper i { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #a0aec0; font-size: 16px; }
 
-        /* TABLE CARD */
-        .table-card { background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.08); padding: 10px; }
-        table { width: 100%; border-collapse: collapse; }
+        /* TABLE HOVER LAYOUT */
+        .table-card { background: white; border-radius: 15px; padding: 25px; box-shadow: 0px 4px 15px rgba(0,0,0,0.1); width: 100%; overflow-x: auto; box-sizing: border-box; }
+        .section-title { font-size: 18px; color: var(--dark-blue); margin-top: 0; margin-bottom: 15px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+
+        table { width: 100%; border-collapse: collapse; table-layout: auto; }
         th { background-color: #f8f9fa; color: #555; text-align: left; padding: 15px; border-bottom: 2px solid #dee2e6; font-weight: 600; }
         td { padding: 15px; border-bottom: 1px solid #eee; font-size: 14px; color: #333; }
-        .patient-link { text-decoration: none; color: var(--dark-blue); font-weight: bold; transition: 0.2s; }
+        tr:hover { background-color: #f1f8ff; }
+
+        .patient-link { text-decoration: none; color: var(--dark-blue); font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; }
         .patient-link:hover { color: var(--header-bg); text-decoration: underline; }
 
-        /* Badges */
-        .badge { padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; display: inline-block;}
+        /* Badges Moden */
+        .type-badge { padding: 4px 10px; border-radius: 5px; font-size: 12px; font-weight: bold; text-transform: uppercase; display: inline-flex; align-items: center; gap: 6px; }
         .badge-mc { background-color: #e3f2fd; color: #0d47a1; }
-        .badge-ts { background-color: #f3e5f5; color: #7b1fa2; }
-        .active { background: #e8f5e9; color: #2e7d32; }
-        .expired { background: #ffebee; color: #c62828; }
-        .revoked { background: #fff3e0; color: #e65100; }    .btn-view { color: var(--header-bg); text-decoration: none; font-size: 18px; transition: 0.2s; }
-        .btn-view:hover { color: var(--dark-blue); transform: scale(1.1); }
+        .badge-ts { background-color: #f3e5f5; color: #6a1b9a; }
+        
+        .status-dot { font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
+        .status-active { color: var(--success-green); }
+        .status-revoked { color: var(--danger-red); }
+
+        @media (max-width: 1200px) { .container { padding: 0 20px; } }
+        @media (max-width: 850px) {
+            .page-hero { flex-direction: column; text-align: center; gap: 15px; }
+            .actions-bar, .search-wrapper { width: 100%; }
+            td, th { padding: 10px; font-size: 13px; }
+        }
     </style>
 </head>
 <body>
@@ -158,85 +160,106 @@ $result = $stmt->get_result();
     <div class="header">
         <div class="header-left">
             <i class="fa-solid fa-bars toggle-btn" onclick="toggleSidebar()"></i>
-            <span style="font-weight: 600; margin-left: 15px;">Document Issuance Logs</span>
+            <span style="font-weight: 600; margin-left: 15px;">Doctor Portal</span>
         </div>
     </div>
 
     <div class="container">
         <div class="page-hero">
-            <div style="font-size: 50px; color: var(--header-bg);"><i class="fa-solid fa-clock-rotate-left"></i></div>
-            <div class="hero-text">
-                <h1>Issuance History</h1>
-                <p>Reviewing all medical documents issued by Dr. <?php echo htmlspecialchars($doctor_name); ?>.</p>
+            <div class="hero-info">
+                <h1><i class="fa-solid fa-clock-rotate-left"></i> Issuance History</h1>
+                <p>Reviewing all immutable medical documents issued under your practitioner signature.</p>
             </div>
         </div>
 
-        <div class="search-container">
-            <div class="search-box">
+        <div class="actions-bar">
+            <div class="search-wrapper">
                 <i class="fa-solid fa-magnifying-glass"></i>
                 <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="Search patient name...">
             </div>
         </div>
 
-        <div class="table-card" style="margin-top: 20px;">
+        <div class="table-card">
+            <div class="section-title"><i class="fa-solid fa-clock-rotate-left"></i> Document Issuance Logs History</div>
             <table id="docTable">
                 <thead>
                     <tr>
-                        <th>Patient Name</th>
-                        <th>Type</th>
-                        <th>Issue Date</th>
-                        <th>Expiry/End Date</th>
-                        <th style="text-align:center;">Status</th>
+                        <th style="width: 30%;">Patient Name</th>
+                        <th style="width: 15%;">Document Type</th>
+                        <th style="width: 20%;">Date Issued</th>
+                        <th style="width: 20%;">Expiry / End Date</th>
+                        <th style="width: 15%; text-align: center;">Registry Status</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if ($result->num_rows > 0): ?>
                         <?php while($row = $result->fetch_assoc()):
                             $docType = strtoupper($row['documentType']);
-                            $typeClass = ($docType === 'MC') ? 'badge-mc' : 'badge-ts';                           
-                            $status = strtolower($row['status']);
-                            $statusLabel = getDisplayStatus($status, $row['expiryDate']); 
-                            $statusCSS = strtolower($statusLabel);
+                            $isMC = ($docType === 'MC');
+                            $typeClass = $isMC ? 'badge-mc' : 'badge-ts';                           
+                            $typeIcon = $isMC ? 'fa-file-medical' : 'fa-user-clock';
+
+                            $statusLabel = getDisplayStatus($row['status']); 
+                            $statusClass = (strtolower($statusLabel) === 'revoked') ? 'status-revoked' : 'status-active';
                         ?>
                         <tr>
                            <td>
-                                    <a href="view_document.php?id=<?php echo $row['docID']; ?>&type=<?php echo strtolower($row['documentType']); ?>" class="patient-link">                                    <i class="fa-solid fa-file-medical" style="margin-right: 8px; opacity: 0.5;"></i>
+                                <a href="view_doc.php?hash=<?php echo $row['documentHash'] ?? ''; ?>&type=<?php echo strtolower($row['documentType']); ?>" class="patient-link">
+                                    <i class="fa-solid fa-user-injured" style="opacity: 0.6;"></i>
                                     <?php echo htmlspecialchars($row['patientName']); ?>
                                 </a>
                             </td> 
-                            <td><span class="badge <?php echo $typeClass; ?>"><?php echo $row['documentType']; ?></span></td>                         
-                            <td><?php echo date("d M Y", strtotime($row['issueDate'])); ?></td>
+                            <td><span class="type-badge <?php echo $typeClass; ?>"><i class="fa-solid <?php echo $typeIcon; ?>"></i> <?php echo $row['documentType']; ?></span></td>                         
+                            <td><i class="fa-regular fa-calendar" style="color:var(--header-bg); margin-right:5px;"></i> <?php echo date("d M Y", strtotime($row['issueDate'])); ?></td>
                             <td>
-                                <?php 
-                                if ($row['documentType'] == 'MC') {
-                                    echo date("d M Y", strtotime($row['expiryDate']));
-                                } else {
-                                    // Time-Slip tidak expire, jadi kita tulis N/A atau Single Day
-                                    echo '<span style="color:#aaa;">- N/A -</span>'; 
-                                }
-                                ?>
+                                <?php if ($isMC): ?>
+                                    <i class="fa-regular fa-calendar-check" style="color:#2f855a; margin-right:5px;"></i> <?php echo date("d M Y", strtotime($row['expiryDate'])); ?>
+                                <?php else: ?>
+                                    <span style="color:#aaa; font-style: italic;">- Single Day -</span>
+                                <?php endif; ?>
                             </td>                            
                             <td style="text-align:center;">
-                                <span class="badge <?php echo $statusCSS; ?>">
+                                <span class="status-dot <?php echo $statusClass; ?>">
                                     ● <?php echo $statusLabel; ?>
                                 </span>
                             </td>
                         </tr>
                         <?php endwhile; ?>
                     <?php else: ?>
-                        <tr><td colspan="5" style="text-align:center; padding: 40px; color: #999;">No records found.</td></tr>
+                        <tr><td colspan="5" style="text-align:center; padding: 40px; color: #999;">No issued records found.</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </div>
 </div>
+
 <script>
     function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    const mainWrapper = document.getElementById('mainWrapper');
-    sidebar.classList.toggle('closed');
-    mainWrapper.classList.toggle('full-width');
+        const sidebar = document.getElementById('sidebar');
+        const mainWrapper = document.getElementById('mainWrapper');
+        sidebar.classList.toggle('closed');
+        mainWrapper.classList.toggle('full-width');
+    }
+
+    // WAJIB: Kekalkan fungsi asal carian JavaScript (Search Engine)
+    function filterTable() {
+        const input = document.getElementById("searchInput");
+        const filter = input.value.toUpperCase();
+        const table = document.getElementById("docTable");
+        const tr = table.getElementsByTagName("tr");
+
+        for (let i = 1; i < tr.length; i++) {
+            const td = tr[i].getElementsByTagName("td")[0]; // Kolum Patient Name
+            if (td) {
+                const txtValue = td.textContent || td.innerText;
+                if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                    tr[i].style.display = "";
+                } else {
+                    tr[i].style.display = "none";
+                }
+            }
+        }
     }
 </script>
 </body>

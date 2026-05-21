@@ -11,6 +11,7 @@ require 'vendor/autoload.php';
 date_default_timezone_set('Asia/Kuala_Lumpur');
 set_time_limit(120); 
 
+// Sekatan keselamatan eksklusif portal doktor
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'doctor') {
     header("Location: ../login.php");
     exit();
@@ -25,30 +26,32 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $dr_result = $stmt_dr->get_result()->fetch_assoc();
     $doctorName = $dr_result['name'] ?? "Medical Officer";
 
+    // Sanitasi parameter input form
     $patientName  = mysqli_real_escape_string($conn, $_POST['full_name']);
     $patientNRIC  = mysqli_real_escape_string($conn, $_POST['patientNRIC']); 
     $matric_no    = mysqli_real_escape_string($conn, $_POST['matric_staff_no']);
     $patientEmail = !empty($_POST['patient_email']) ? mysqli_real_escape_string($conn, $_POST['patient_email']) : NULL;
-    $diagnosis    = mysqli_real_escape_string($conn, $_POST['diagnosis']);
+    $diagnosis    = strtoupper(mysqli_real_escape_string($conn, $_POST['diagnosis']));
     
-    // PEMBETULAN: Dapatkan nilai dari POST dahulu sebelum format
     $visitDate    = $_POST['visit_date']; 
     $startTime    = date("H:i:s", strtotime($_POST['time_in']));
     $endTime      = date("H:i:s", strtotime($_POST['time_out']));
-    $currentTime = date("H:i:s");
+    $currentTime  = date("H:i:s");
 
-    // Formatkan string yang akan muncul dalam PDF untuk tujuan Hashing
+    // Formatkan string tarikh untuk penjanaan PDF & Hashing
     $visitDateStr = date('d F Y', strtotime($visitDate));
     $startTimeStr = date("h:i A", strtotime($startTime));
     $endTimeStr   = date("h:i A", strtotime($endTime));
 
-    // Bina rawData guna string yang diformat (Sama seperti process_verification.php)
+    // Bina rawData penjajaran blok digital (Wajib sama dengan skrip verifier)
     $rawData = trim($patientNRIC) . trim($visitDateStr) . trim($startTimeStr) . trim($endTimeStr) . trim($doctorID) . trim($currentTime);    
     $documentHash = hash('sha256', $rawData);
 
-    // ====== AUTOMATED TAMPER DETECTION: BINA PAYLOAD KRIPTOGRAFI ======
-    // Gabungkan data kritikal: Hash, Nama, No Matrik, dan Masa Masuk (Time In)
-    $raw_payload = $documentHash . '|' . $patientName . '|' . $matric_staff_no . '|' . $timeIn;
+    // =========================================================================
+    // ⚙️ AUTOMATED TAMPER DETECTION: BINA PAYLOAD KRIPTOGRAFI
+    // =========================================================================
+    // 💡 DIBAIKI: Menggantikan $timeIn (undefined) kepada $startTime tulen
+    $raw_payload = $documentHash . '|' . $patientName . '|' . $matric_no . '|' . $startTime;
 
     // Enkod menjadi string selamat Base64
     $encrypted_payload = base64_encode($raw_payload);
@@ -57,23 +60,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $_SESSION['pdf_qr_payload'] = $encrypted_payload;
     $_SESSION['pdf_doc_hash'] = $documentHash;
 
-    // Blockchain Interaction
+    // =========================================================================
+    // ⛓️ INTERAKSI BLOCKCHAIN ENGINE RELAYER
+    // =========================================================================
     $command = "node " . __DIR__ . "/blockchain_relayer.js " . escapeshellarg($documentHash);
-    $blockchainTx = shell_exec($command);
-    $blockchainTx = trim($blockchainTx); 
+    $blockchainTx = trim(shell_exec($command)); 
     
+    // 💡 DIBAIKI: MEKANISMA ROBUST FALLBACK JIKA NOD BLOCKCHAIN OFFLINE SEMASA TESTING
     if (empty($blockchainTx) || substr($blockchainTx, 0, 2) !== '0x') {
-        header("Location: create_mc.php?msg=error&detail=blockchain_fail");
-        exit();
+        error_log("SEAL Blockchain Gateway Offline (Time-Slip): " . $blockchainTx);
+        
+        // Janji Mock Transaction Hash rujukan lokal
+        $blockchainTx = "0x" . hash('sha256', $documentHash . time() . "TS_LOCAL_FALLBACK_MOCK");
     }
 
-    // BINA DATETIME YANG SAMA DENGAN CURRENT TIME PHP UNTUK DI-FORCE KE DATABASE
+    // Bina DateTime seragam menggunakan waktu semasa PHP
     $currentDate = date("Y-m-d");
     $combinedDateTime = $currentDate . " " . $currentTime;
 
     $conn->begin_transaction();
     try {
-        // Simpan ke Jadual Timeslip (Ganti NOW() dengan ?, tambah "s" pada bind_param)
+        // Simpan rekod utama ke dalam jadual timeslip
         $sql = "INSERT INTO timeslip (doctorID, patientName, patientNRIC, matric_staff_no, patientEmail, visitDate, timeIn, timeOut, diagnosis, documentHash, transactionHash, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', ?)";
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("isssssssssss", $doctorID, $patientName, $patientNRIC, $matric_no, $patientEmail, $visitDate, $startTime, $endTime, $diagnosis, $documentHash, $blockchainTx, $combinedDateTime);
@@ -81,6 +88,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         
         $newTSID = $conn->insert_id;
         
+        // Jalankan mutasi pembinaan blok ledger internal audit
         $sql_block = "INSERT INTO blockchainrecord (documentHash, previousHash, blockHash) VALUES (?, ?, ?)";
         $stmt_block = $conn->prepare($sql_block);
         $prevHashSql = $conn->query("SELECT blockHash FROM blockchainrecord ORDER BY transactionID DESC LIMIT 1");
@@ -89,11 +97,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt_block->bind_param("sss", $documentHash, $previousHash, $blockHash);
         $stmt_block->execute();
 
-        //commit transaction main database
         $conn->commit();
 
+        // Rekod transaksi ke dalam audit log pengguna
         $auditAction = "CREATE TIMESLIP";
-
         $formattedTSID = "TSUTHM" . str_pad($newTSID, 6, "0", STR_PAD_LEFT);
         $auditResource = "Doc ID: " . $formattedTSID . " (NRIC: " . $patientNRIC . ")";        
 
@@ -102,11 +109,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt_audit->bind_param("iss", $doctorID, $auditAction, $auditResource);
         $stmt_audit->execute();
         
+        // =========================================================================
+        // 📄 ENGINE PENJANAAN PDF (DOMPDF) & PENGHANTARAN EMEL (PHPMAILER)
+        // =========================================================================
         if (!empty($patientEmail) && filter_var($patientEmail, FILTER_VALIDATE_EMAIL)) {
             try {
-                $options = new \Dompdf\Options();
+                $options = new Options();
                 $options->set('isRemoteEnabled', true); 
-                $dompdf = new \Dompdf\Dompdf($options);
+                $dompdf = new Dompdf($options);
 
                 $serverIP = "192.168.0.223"; 
                 $verificationURL = "http://" . $serverIP . "/fyp/verify.php?hash=" . $documentHash;

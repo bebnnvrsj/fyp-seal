@@ -20,7 +20,7 @@ $result = $conn->query($sql);
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Audit Logs - SEAL</title>
+    <title>System Audit Logs - SEAL</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
@@ -30,6 +30,10 @@ $result = $conn->query($sql);
             --header-bg: #2b7a9e;
             --main-bg: linear-gradient(to bottom, #caf0f8, #90e0ef, #48cae4);
             --dark-blue: #183055;
+            --success-green: #28a745;
+            --danger-red: #dc3545;
+            --warning-orange: #fd7e14;
+            --info-blue: #0d47a1;
         }
 
         body {
@@ -41,7 +45,7 @@ $result = $conn->query($sql);
             overflow-x: hidden;
         }
 
-        /* ====== SIDEBAR (Consistent) ====== */
+        /* ====== SIDEBAR ====== */
         .sidebar { width: var(--sidebar-width); height: 100vh; background-color: var(--dark-blue); color: white; position: fixed; left: 0; top: 0; transition: transform 0.3s ease; z-index: 1000; display: flex; flex-direction: column; }
         .sidebar.closed { transform: translateX(-100%); }
         .sidebar-header { padding: 20px; background-color: #122542; display: flex; align-items: center; gap: 15px; font-weight: bold; }
@@ -50,32 +54,60 @@ $result = $conn->query($sql);
         .sidebar-menu li a:hover { background-color: #2b7a9e; color: white; }
         .sidebar-menu li a.active { background-color: #2b7a9e; color: white; border-left: 4px solid #fff; }
 
-        /* ====== MAIN WRAPPER (Consistent) ====== */
+        /* ====== MAIN WRAPPER ====== */
         .main-wrapper { flex: 1; display: flex; flex-direction: column; margin-left: var(--sidebar-width); transition: margin-left 0.3s ease; width: 100%; }
         .main-wrapper.full-width { margin-left: 0; }
-
         .header { height: 56px; background-color: var(--header-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         .toggle-btn { cursor: pointer; font-size: 20px; }
 
         /* ====== CONTAINER ====== */
-        .container { width: 95%; max-width: 1600px; margin: 30px auto; padding: 0 20px; display: flex; flex-direction: column; gap: 25px; }
+        .container { width: 95%; max-width: 100%; margin: 30px auto; padding: 0 40px; box-sizing: border-box; display: flex; flex-direction: column; gap: 25px; }
 
         .page-hero {
             background: white; border-radius: 15px; padding: 25px 35px;
             display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
-        .page-hero h1 { margin: 0; color: var(--dark-blue); font-size: 24px; }
-
-        .management-card { background: white; border-radius: 15px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
         
-        table { width: 100%; border-collapse: collapse; }
+        .hero-info h1 { margin: 0; color: var(--dark-blue); font-size: 24px; display: flex; align-items: center; gap: 12px; }
+        .hero-info p { margin: 5px 0 0; color: #666; font-size: 14px; }
+
+        /* ====== FILTER CONTROLS ====== */
+        .search-wrapper { position: relative; display: flex; align-items: center; width: 320px; }
+        .search-wrapper i { position: absolute; left: 15px; color: #a0aec0; font-size: 16px; z-index: 5; }
+        .search-wrapper select {
+            width: 100%; padding: 12px 15px 12px 45px;
+            border-radius: 10px; border: 1px solid #cbd5e1; font-size: 14px; outline: none;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05); color: #334155; background: #ffffff;
+            transition: all 0.2s ease; cursor: pointer;
+        }
+        .search-wrapper select:focus { border-color: var(--header-bg); box-shadow: 0 0 0 3px rgba(43, 122, 158, 0.15); }
+
+        /* ====== MANAGEMENT TABLE CARD ====== */
+        .management-card { background: white; border-radius: 15px; padding: 25px; box-shadow: 0px 4px 15px rgba(0,0,0,0.1); width: 100%; overflow-x: auto; }
+        .section-title { font-size: 18px; color: var(--dark-blue); margin-top: 0; margin-bottom: 15px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+
+        table { width: 100%; border-collapse: collapse; table-layout: auto; }
         th { background-color: #f8f9fa; padding: 15px; text-align: left; border-bottom: 2px solid #dee2e6; color: #555; font-weight: 600; }
         td { padding: 15px; border-bottom: 1px solid #eee; font-size: 14px; color: #333; }
         tr:hover { background-color: #f1f8ff; }
 
-        .action-badge { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: bold; background: #e9ecef; color: #495057; border: 1px solid #dee2e6; }
-        
-        .search-wrapper select { padding: 12px; border-radius: 10px; border: 1px solid #ddd; width: 300px; outline: none; }
+        /* ====== ACTION BADGE COLORS (DYNAMIC LOOK) ====== */
+        .action-badge { padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: bold; text-transform: uppercase; display: inline-block; }
+        .badge-create { background: #e3f2fd; color: var(--info-blue); }
+        .badge-issue { background: #e8f5e9; color: var(--success-green); }
+        .badge-revoke { background: #fff3e0; color: var(--warning-orange); }
+        .badge-verify { background: #f3e5f5; color: #6a1b9a; }
+        .badge-default { background: #f0f0f0; color: #495057; }
+
+        .timestamp-cell { color: #4a5568; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+        .timestamp-cell i { color: var(--header-bg); }
+
+        @media (max-width: 1200px) { .container { padding: 0 20px; } }
+        @media (max-width: 850px) {
+            .page-hero { flex-direction: column; text-align: center; gap: 15px; }
+            .search-wrapper { width: 100%; }
+            td, th { padding: 10px; font-size: 13px; }
+        }
     </style>
 </head>
 <body>
@@ -103,44 +135,54 @@ $result = $conn->query($sql);
 
     <div class="container">
         <div class="page-hero">
-            <h1><i class="fa-solid fa-clipboard-list"></i> System Audit Logs</h1>
+            <div class="hero-info">
+                <h1><i class="fa-solid fa-clipboard-list"></i> System Audit Logs</h1>
+                <p>Track internal operations, immutable identity registrations, and system event structures.</p>
+            </div>
             <div class="search-wrapper">
                 <i class="fa-solid fa-filter"></i>
                 <select id="actionFilter">
                     <option value="">All System Actions</option>
-                    <option value="Create User">Create User</option>
                     <option value="Issue MC">Issue MC</option>
                     <option value="Issue Time-Slip">Issue Time-Slip</option>
-                    <option value="Revoke Document">Revoke Document</option>
                     <option value="Verify Document">Verify Document</option>
                 </select>
             </div>
         </div>
 
         <div class="management-card">
+            <div class="section-title"><i class="fa-solid fa-clock-rotate-left"></i> Immutable Operations History Trail</div>
             <table>
                 <thead>
                     <tr>
-                        <th>Log ID</th>
-                        <th>User</th>
-                        <th>Action</th>
-                        <th>Target Resource</th>
-                        <th>Timestamp</th>
+                        <th style="width: 10%;">Log ID</th>
+                        <th style="width: 25%;">Triggered By (User)</th>
+                        <th style="width: 20%;">Action Imposed</th>
+                        <th style="width: 25%;">Target Resource Signature</th>
+                        <th style="width: 20%;">Execution Timestamp</th>
                     </tr>
                 </thead>
                 <tbody id="logTableBody">
                     <?php if ($result->num_rows > 0): ?>
-                        <?php while($log = $result->fetch_assoc()): ?>
+                        <?php while($log = $result->fetch_assoc()): 
+                            $act = strtolower(trim($log['action']));
+                            // Tentukan kelas lencana secara dinamik berasaskan kata kunci tindakan
+                            $badgeType = "badge-default";
+                            if (strpos($act, 'create') !== false) $badgeType = "badge-create";
+                            elseif (strpos($act, 'issue') !== false) $badgeType = "badge-issue";
+                            elseif (strpos($act, 'revoke') !== false) $badgeType = "badge-revoke";
+                            elseif (strpos($act, 'verify') !== false) $badgeType = "badge-verify";
+                        ?>
                         <tr>
                             <td><strong>#<?php echo $log['logID']; ?></strong></td>
-                            <td><?php echo htmlspecialchars($log['admin_name']); ?></td>
-                            <td><span class="action-badge"><?php echo htmlspecialchars($log['action']); ?></span></td>
-                            <td><?php echo htmlspecialchars($log['resource']); ?></td>
-                            <td><?php echo date("d M Y | h:i A", strtotime($log['timestamp'])); ?></td>
+                            <td><span style="font-weight: 600; color: var(--dark-blue);"><?php echo htmlspecialchars($log['admin_name']); ?></span></td>
+                            <td><span class="action-badge <?php echo $badgeType; ?>"><?php echo htmlspecialchars($log['action']); ?></span></td>
+                            <td><span style="font-family: monospace; color: #4a5568; font-size: 13px;"><?php echo htmlspecialchars($log['resource']); ?></span></td>
+                            <td class="timestamp-cell"><i class="fa-regular fa-calendar-days"></i> <?php echo date("d M Y | h:i A", strtotime($log['timestamp'])); ?></td>
                         </tr>
                         <?php endwhile; ?>
                     <?php else: ?>
-                        <tr><td colspan="5" style="text-align:center; padding: 30px;">No system logs available.</td></tr>
+                        <tr><td colspan="5" style="text-align:center; padding: 30px; color: #718096;">No internal logs registered inside this network grid.</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
@@ -156,7 +198,7 @@ $result = $conn->query($sql);
         mainWrapper.classList.toggle('full-width');
     }
 
-    // AJAX Filter (Same logic as before but updated IDs)
+    // AJAX Filter (Kekal logik asal tetapi dipadankan dengan pembaikan gaya)
     document.getElementById('actionFilter').addEventListener('change', function() {
         const selectedAction = this.value;
         const tableBody = document.getElementById('logTableBody');

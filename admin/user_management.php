@@ -23,9 +23,18 @@ $count_sql = "SELECT
               FROM users";
 $count_result = $conn->query($count_sql)->fetch_assoc();
 
+// ─── DIBAIKI: AMBIL KIRA JUMLAH PESAKIT TERUS DARI TABEL PATIENTS ───
+$patient_count_sql = "SELECT COUNT(*) as total_patients FROM patients";
+$patient_count_result = $conn->query($patient_count_sql)->fetch_assoc();
+$total_patients = $patient_count_result['total_patients'] ?? 0;
+
 // Fetch users for the management table
 $sql = "SELECT userID, username, name, role, staff_number, status FROM users";
 $result = $conn->query($sql);
+
+// ─── DIBAIKI: AMBIL SENARAI REKOD PESAKIT DARI TABEL PATIENTS ───
+$patient_sql = "SELECT patientID, full_name, ic_passport, matric_staff_no, email FROM patients";
+$patient_result = $conn->query($patient_sql);
 ?>
 
 <!DOCTYPE html>
@@ -33,7 +42,7 @@ $result = $conn->query($sql);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>User Management - SEAL</title>
+    <title>User & Patient Management - SEAL</title>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -83,30 +92,17 @@ $result = $conn->query($sql);
             gap: 25px; 
         }
 
-        .page-hero {
-            background: white;
-            border-radius: 15px;
-            padding: 25px 35px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        }
-
-        .hero-info h1 { margin: 0; color: var(--dark-blue); font-size: 24px; }
-        .hero-info p { margin: 5px 0 0; color: #666; font-size: 14px; }
-
         /* ====== INTERACTIVE ROLE CARDS ====== */
         .role-cards-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 20px;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 15px;
         }
 
         .role-box {
             background: white;
             border-radius: 12px;
-            padding: 20px;
+            padding: 15px 20px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -126,11 +122,14 @@ $result = $conn->query($sql);
             transform: translateY(-2px);
         }
 
-        .role-box-info h3 { margin: 0; font-size: 14px; color: #7f8c8d; text-transform: uppercase; letter-spacing: 0.5px; }
-        .role-box-info p { margin: 5px 0 0; font-size: 28px; font-weight: bold; color: var(--dark-blue); }
-        .role-box-icon { font-size: 30px; padding: 12px; border-radius: 10px; }
+        .role-box-info h3 { margin: 0; font-size: 12px; color: #7f8c8d; text-transform: uppercase; letter-spacing: 0.5px; }
+        .role-box-info p { margin: 5px 0 0; font-size: 26px; font-weight: bold; color: var(--dark-blue); }
+        .role-box-icon { font-size: 26px; padding: 10px; border-radius: 10px; }
 
-        /* Pewarnaan Spesifik Box */
+        /* Pewarnaan Box */
+        .box-patient { border-bottom-color: #28a745; }
+        .box-patient .role-box-icon { background: #e8f5e9; color: #28a745; }
+
         .box-all { border-bottom-color: var(--dark-blue); }
         .box-all .role-box-icon { background: #eaedf2; color: var(--dark-blue); }
         
@@ -162,21 +161,6 @@ $result = $conn->query($sql);
         }
         .search-wrapper i { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #888; }
 
-        .add-user-btn {
-            background-color: var(--header-bg);
-            color: white;
-            text-decoration: none;
-            padding: 12px 20px;
-            border-radius: 10px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            transition: 0.3s;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .add-user-btn:hover { background-color: var(--dark-blue); transform: translateY(-2px); }
-
         /* Management Table Card */
         .management-card {
             background: #ffffff;
@@ -185,6 +169,17 @@ $result = $conn->query($sql);
             box-shadow: 0px 4px 15px rgba(0,0,0,0.1);
             width: 100%; 
             overflow-x: auto;
+        }
+
+        .section-title {
+            font-size: 18px;
+            color: var(--dark-blue);
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         table { width: 100%; border-collapse: collapse; table-layout: auto;}
@@ -196,6 +191,7 @@ $result = $conn->query($sql);
         .role-doctor { background: #e3f2fd; color: #0d47a1; }
         .role-admin { background: #fff3e0; color: #e65100; }
         .role-verifier { background: #f0f0f0; color: #495057; }
+        .role-patient-badge { background: #e8f5e9; color: #2e7d32; }
 
         .action-icons { display: flex; gap: 15px; }
         .edit-icon { color: var(--header-bg); font-size: 18px; }
@@ -206,13 +202,11 @@ $result = $conn->query($sql);
         .status-active { background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
         .status-inactive { background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
 
-        @media (max-width: 1200px) {
-            .container { padding: 0 20px; }
-            .role-cards-grid { grid-template-columns: repeat(2, 1fr); }
+        @media (max-width: 1400px) {
+            .role-cards-grid { grid-template-columns: repeat(3, 1fr); }
         }
 
         @media (max-width: 768px) { 
-            .page-hero { flex-direction: column; text-align: center; gap: 15px; }
             .actions-bar { flex-direction: column; align-items: stretch; }
             .search-wrapper { width: 100%; }
             .role-cards-grid { grid-template-columns: 1fr; }
@@ -251,26 +245,25 @@ $result = $conn->query($sql);
                     <?php 
                         if($_GET['msg'] == 'created') echo "User successfully created and active in the system.";
                         elseif($_GET['msg'] == 'updated') echo "User details have been updated successfully.";
+                        elseif($_GET['msg'] == 'patient_updated') echo "Patient records updated smoothly inside core registries.";
                         elseif($_GET['msg'] == 'self_delete_error') echo "Security Alert: You cannot delete your own account.";
                     ?>
                 </span>
             </div>
         <?php endif; ?>
 
-        <div class="page-hero">
-            <div class="hero-info">
-                <h1><i class="fa-solid fa-users-gear"></i> User Management</h1>
-                <p>System Control Center | Manage system privileges and credentials</p>
-            </div>
-            <a href="../add_user.php" class="add-user-btn">
-                <i class="fa-solid fa-user-plus"></i> Add New User
-            </a>
-        </div>
-
         <div class="role-cards-grid">
+            <div class="role-box box-patient" onclick="filterByRole('patient', this)">
+                <div class="role-box-info">
+                    <h3>Total Patients</h3>
+                    <p><?php echo $total_patients; ?></p>
+                </div>
+                <div class="role-box-icon"><i class="fa-solid fa-hospital-user"></i></div>
+            </div>
+
             <div class="role-box box-all active-filter" onclick="filterByRole('all', this)">
                 <div class="role-box-info">
-                    <h3>Total Users</h3>
+                    <h3>Total System Users</h3>
                     <p><?php echo $count_result['total']; ?></p>
                 </div>
                 <div class="role-box-icon"><i class="fa-solid fa-users"></i></div>
@@ -304,11 +297,12 @@ $result = $conn->query($sql);
         <div class="actions-bar">
             <div class="search-wrapper">
                 <i class="fa-solid fa-magnifying-glass"></i>
-                <input type="text" id="userInput" onkeyup="filterTable()" placeholder="Search by name or staff ID...">
+                <input type="text" id="userInput" onkeyup="filterTable()" placeholder="Search records...">
             </div>
         </div>
 
-        <div class="management-card">
+        <div class="management-card" id="systemUsersCard">
+            <div class="section-title"><i class="fa-solid fa-users-gear"></i> Internal System Users Registry</div>
             <table id="userTable">
                 <thead>
                     <tr>
@@ -321,42 +315,83 @@ $result = $conn->query($sql);
                     </tr>
                 </thead>
                 <tbody>
-                    <?php
-                    if ($result && $result->num_rows > 0) {
-                        while($row = $result->fetch_assoc()) {
-                            $status = $row['status'] ?? 'active'; 
-                            $statusClass = ($status == 'active') ? 'status-active' : 'status-inactive';
-                            $role = strtolower($row['role']);
-                            $badgeClass = ($role == 'doctor') ? 'role-doctor' : (($role == 'admin') ? 'role-admin' : 'role-verifier');
+                <?php
+                if ($result && $result->num_rows > 0) {
+                    while($row = $result->fetch_assoc()) {
+                        $status = $row['status'] ?? 'active'; 
+                        $statusClass = ($status == 'active') ? 'status-active' : 'status-inactive';
+                        $role = strtolower($row['role']);
+                        $badgeClass = ($role == 'doctor') ? 'role-doctor' : (($role == 'admin') ? 'role-admin' : 'role-verifier');
 
-                            echo "<tr data-role='".$role."'>";
-                            echo "<td><strong>#" . htmlspecialchars($row["staff_number"]) . "</strong></td>";
-                            echo "<td>" . htmlspecialchars($row["name"]) . "</td>";
-                            echo "<td>" . htmlspecialchars($row["username"]) . "</td>";
-                            echo "<td><span class='role-badge $badgeClass'>" . ucfirst($row["role"]) . "</span></td>";
-                            echo "<td><span class='status-badge $statusClass'>" . ucfirst($status) . "</span></td>";
+                        echo "<tr data-role='".$role."'>";
+                        echo "<td><strong>#" . htmlspecialchars($row["staff_number"]) . "</strong></td>";
+                        echo "<td>" . htmlspecialchars($row["name"]) . "</td>";
+                        echo "<td>" . htmlspecialchars($row["username"]) . "</td>";
+                        echo "<td><span class='role-badge $badgeClass'>" . ucfirst($row["role"]) . "</span></td>";
+                        echo "<td><span class='status-badge $statusClass'>" . ucfirst($status) . "</span></td>";
+                        // 💡 DIBAIKI: 'a-solid' ditukar ke 'fa-solid' untuk ikon Edit
+                        echo "<td style='text-align:center;'>
+                                <div class='action-icons' style='justify-content:center;'>
+                                    <a href='update_user.php?id=".$row["userID"]."' class='edit-icon' title='Edit'><i class='fa-solid fa-user-pen'></i></a>
+                                    <a href='#' 
+                                        class='delete-icon toggle-status-btn' 
+                                        data-id='".$row["userID"]."' 
+                                        data-name='".htmlspecialchars($row["name"])."' 
+                                        data-status='".$status."' 
+                                        title='Toggle Active/Inactive'>
+                                        <i class='fa-solid fa-power-off'></i>
+                                    </a>                                 
+                                </div>
+                            </td>";
+                        echo "</tr>";
+                    }
+                } else {
+                    echo "<tr><td colspan='6' style='text-align:center; padding: 30px;'>No registered users found.</td></tr>";
+                }
+                ?>
+            </tbody>
+            </table>
+        </div>
+
+        <div class="management-card" id="patientsCard" style="display: none;">
+            <div class="section-title"><i class="fa-solid fa-hospital-user"></i> Registered UTHM Patients Master Database</div>
+            <table id="patientTable">
+                <thead>
+                    <tr>
+                        <th>Matric / Staff No</th>
+                        <th>Patient Full Name</th>
+                        <th>IC / Passport Number</th>
+                        <th>Email Address</th>
+                        <th style="text-align: center;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php
+                    if ($patient_result && $patient_result->num_rows > 0) {
+                        while($p_row = $patient_result->fetch_assoc()) {
+                            $patientEmail = !empty($p_row["email"]) ? htmlspecialchars($p_row["email"]) : "<span style='color:#aaa; font-style:italic;'>N/A</span>";
+                            
+                            echo "<tr data-role='patient'>";
+                            echo "<td><strong>" . strtoupper(htmlspecialchars($p_row["matric_staff_no"])) . "</strong></td>";
+                            echo "<td>" . strtoupper(htmlspecialchars($p_row["full_name"])) . "</td>";
+                            echo "<td>" . htmlspecialchars($p_row["ic_passport"]) . "</td>";
+                            echo "<td>" . $patientEmail . "</td>";
+                            // 💡 DIBAIKI: 'a-solid' ditukar ke 'fa-solid' & susunan penutup tag </td></tr> diperkemaskan
                             echo "<td style='text-align:center;'>
                                     <div class='action-icons' style='justify-content:center;'>
-                                        <a href='update_user.php?id=".$row["userID"]."' class='edit-icon' title='Edit'><i class='fa-solid fa-pen-to-square'></i></a>
-                                        <a href='#' 
-                                            class='delete-icon toggle-status-btn' 
-                                            data-id='".$row["userID"]."' 
-                                            data-name='".htmlspecialchars($row["name"])."' 
-                                            data-status='".$status."' 
-                                            title='Toggle Active/Inactive'>
-                                            <i class='fa-solid fa-power-off'></i>
-                                        </a>                                 
+                                        <a href='edit_patient.php?id=".$p_row["patientID"]."' class='edit-icon' title='Edit Patient'><i class='fa-solid fa-user-pen'></i></a>
                                     </div>
                                 </td>";
                             echo "</tr>";
                         }
                     } else {
-                        echo "<tr><td colspan='6' style='text-align:center; padding: 30px;'>No registered users found.</td></tr>";
+                        echo "<tr><td colspan='5' style='text-align:center; padding: 30px;'>No registered patient documents discovered.</td></tr>";
                     }
                     ?>
                 </tbody>
             </table>
         </div>
+
     </div>
 </div>
 
@@ -370,52 +405,83 @@ $result = $conn->query($sql);
         mainWrapper.classList.toggle('full-width');
     }
 
-    // FUNGSI UTAMA UNTUK FILTER MENGIKUT KLIK BOX
     function filterByRole(role, element) {
-        // Tukar style box yang aktif
         document.querySelectorAll('.role-box').forEach(box => {
             box.classList.remove('active-filter');
         });
-        element.classList.add('active-filter');
+        element.classList.add('active-ffilter');
         
         currentSelectedRole = role.toLowerCase();
+
+        const systemUsersCard = document.getElementById('systemUsersCard');
+        const patientsCard = document.getElementById('patientsCard');
+
+        if (currentSelectedRole === 'patient') {
+            systemUsersCard.style.display = 'none';
+            patientsCard.style.display = 'block';
+            document.getElementById("userInput").placeholder = "Search by name, matrix or IC number...";
+        } else {
+            systemUsersCard.style.display = 'block';
+            patientsCard.style.display = 'none';
+            document.getElementById("userInput").placeholder = "Search by name or staff ID...";
+        }
+
         applyCombinedFilter();
     }
 
-    // FUNGSI CARIAN INPUT TEKS
     function filterTable() {
         applyCombinedFilter();
     }
 
-    // GABUNGKAN LOGIK CARIAN TEKS + INTERACTIVE BOX FILTER
     function applyCombinedFilter() {
         const searchFilter = document.getElementById("userInput").value.toUpperCase();
-        const table = document.getElementById("userTable");
-        const tr = table.getElementsByTagName("tr");
-
-        for (let i = 1; i < tr.length; i++) {
-            const rowRole = tr[i].getAttribute('data-role');
-            const tdID = tr[i].getElementsByTagName("td")[0];
-            const tdName = tr[i].getElementsByTagName("td")[1];
-            
-            if (tdID || tdName) {
-                const txtValueID = tdID.textContent || tdID.innerText;
-                const txtValueName = tdName.textContent || tdName.innerText;
+        
+        if (currentSelectedRole === 'patient') {
+            const table = document.getElementById("patientTable");
+            const tr = table.getElementsByTagName("tr");
+            for (let i = 1; i < tr.length; i++) {
+                const tdMatric = tr[i].getElementsByTagName("td")[0];
+                const tdName = tr[i].getElementsByTagName("td")[1];
+                const tdIC = tr[i].getElementsByTagName("td")[2];
+                if (tdMatric || tdName || tdIC) {
+                    const txtMatric = tdMatric.textContent || tdMatric.innerText;
+                    const txtName = tdName.textContent || tdName.innerText;
+                    const txtIC = tdIC.textContent || tdIC.innerText;
+                    if (txtMatric.toUpperCase().indexOf(searchFilter) > -1 || 
+                        txtName.toUpperCase().indexOf(searchFilter) > -1 ||
+                        txtIC.toUpperCase().indexOf(searchFilter) > -1) {
+                        tr[i].style.display = "";
+                    } else {
+                        tr[i].style.display = "none";
+                    }
+                }
+            }
+        } else {
+            const table = document.getElementById("userTable");
+            const tr = table.getElementsByTagName("tr");
+            for (let i = 1; i < tr.length; i++) {
+                const rowRole = tr[i].getAttribute('data-role');
+                const tdID = tr[i].getElementsByTagName("td")[0];
+                const tdName = tr[i].getElementsByTagName("td")[1];
                 
-                const matchesSearch = (txtValueID.toUpperCase().indexOf(searchFilter) > -1 || txtValueName.toUpperCase().indexOf(searchFilter) > -1);
-                const matchesRole = (currentSelectedRole === 'all' || rowRole === currentSelectedRole);
-                
-                if (matchesSearch && matchesRole) {
-                    tr[i].style.display = "";
-                } else {
-                    tr[i].style.display = "none";
+                if (tdID || tdName) {
+                    const txtValueID = tdID.textContent || tdID.innerText;
+                    const txtValueName = tdName.textContent || tdName.innerText;
+                    
+                    const matchesSearch = (txtValueID.toUpperCase().indexOf(searchFilter) > -1 || txtValueName.toUpperCase().indexOf(searchFilter) > -1);
+                    const matchesRole = (currentSelectedRole === 'all' || rowRole === currentSelectedRole);
+                    
+                    if (matchesSearch && matchesRole) {
+                        tr[i].style.display = "";
+                    } else {
+                        tr[i].style.display = "none";
+                    }
                 }
             }
         }
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-        // Event Listener Toggle Status Account
         document.querySelectorAll('.toggle-status-btn').forEach(button => {
             button.addEventListener('click', function(e) {
                 e.preventDefault();

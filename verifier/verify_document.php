@@ -1,5 +1,6 @@
 <?php
 session_start();
+date_default_timezone_set("Asia/Kuala_Lumpur");
 // Only verifier can access this page
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'verifier') {
     header("Location: ../login/login.php");
@@ -17,7 +18,6 @@ $verifierName = isset($_SESSION['name']) ? $_SESSION['name'] : 'Verifier';
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 
@@ -69,13 +69,16 @@ $verifierName = isset($_SESSION['name']) ? $_SESSION['name'] : 'Verifier';
 
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* Camera Lock Box Styling (NEW Improvement) */
+        /* Camera Lock Box Styling */
         .camera-lock-box { text-align: center; padding: 40px 20px; background: #fff5f5; border: 2px dashed #fc8181; border-radius: 12px; color: #c53030; display: none; }
         .camera-lock-box i { font-size: 45px; margin-bottom: 15px; }
 
-        /* Camera Viewport Tweaks */
-        #reader-viewport { width: 100%; max-width: 450px; margin: 0 auto; border: none !important; background: #fafafa; }
-        #reader-viewport button { background-color: var(--header-bg) !important; color: white !important; border: none !important; padding: 12px 24px !important; border-radius: 8px !important; font-weight: bold; cursor: pointer !important; margin: 15px auto !important; display: block !important; }
+        /* Custom Camera Stream Layout */
+        .camera-container { width: 100%; max-width: 480px; margin: 0 auto; text-align: center; position: relative; background: #1a202c; border-radius: 15px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.15); }
+        #webcam-stream { width: 100%; height: auto; display: block; transform: scaleX(1); }
+        .viewfinder-guide { position: absolute; top: 10%; left: 10%; width: 80%; height: 80%; border: 3px dashed rgba(255, 255, 255, 0.65); border-radius: 10px; pointer-events: none; box-sizing: border-box; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4); }
+        .capture-trigger-btn { background: #e53e3e; color: white; border: none; padding: 14px; width: 90%; margin: 15px auto; border-radius: 10px; font-weight: 700; font-size: 14px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px; box-shadow: 0 4px 12px rgba(229,62,62,0.4); }
+        .capture-trigger-btn:hover { background: #c53030; transform: translateY(-1px); }
 
         .scan-box { border: 2px dashed #ccc; border-radius: 15px; padding: 30px; text-align: center; cursor: pointer; transition: 0.3s; color: #666; }
         .scan-box:hover { border-color: var(--header-bg); background: #f9f9f9; color: var(--header-bg); }
@@ -90,26 +93,31 @@ $verifierName = isset($_SESSION['name']) ? $_SESSION['name'] : 'Verifier';
         .highlight-header { padding: 40px 20px; text-align: center; color: white; }
         .highlight-header i { font-size: 60px; margin-bottom: 15px; }
         .highlight-header h2 { margin: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 1px; }
-        .highlight-body { padding: 30px; }
+        .highlight-body { padding: 30px; max-height: 70vh; overflow-y: auto; }
 
         .detail-item { display: flex; justify-content: space-between; padding: 12px; background: #f8f9fa; border-radius: 8px; margin-top: 10px; font-size: 13px; }
-        .close-overlay { display: block; width: 100%; padding: 15px; background: var(--dark-blue); color: white; text-align: center; text-decoration: none; font-weight: bold; border: none; cursor: pointer; }
+        .close-overlay { display: block; width: 100%; padding: 15px; background: var(--dark-blue); color: white; text-align: center; text-decoration: none; font-weight: bold; border: none; cursor: pointer; transition: 0.2s; }
+        .close-overlay:hover { background: #122542; }
 
         .badge { padding: 6px 14px; border-radius: 50px; font-size: 12px; font-weight: 700; display: inline-block; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .status-authentic { background-color: var(--status-success) !important; color: white !important; }
-        .status-revoked-guide { background-color: var(--status-revoked) !important; color: white !important; }
         .status-invalid { background-color: var(--status-tampered) !important; color: white !important; }
 
         .info-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #fdfdfe; border: 1px solid #edf2f7; border-radius: 8px; margin-top: 10px; }
         .info-label { font-size: 13px; font-weight: 600; color: #4a5568; }
         .info-value { font-size: 13px; font-weight: 700; color: var(--dark-blue); text-align: right; }
 
-        @media (max-width: 1024px) {
-            .main-wrapper { }
-        }
+        .blockchain-proof-box { background: #f0fff4; border: 1px solid #c6f6d5; border-radius: 10px; padding: 15px; margin-top: 15px; font-size: 13px; text-align: left; }
+        .blockchain-proof-title { color: #22543d; font-weight: 700; display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 14px; }
+        
+        /* ─── NEW STYLE: TAMPERED FORENSIC CARD ─── */
+        .forensic-alert-box { background: #fff5f5; border: 1px dashed #feb2b2; border-radius: 12px; padding: 18px; margin-bottom: 15px; text-align: left; }
+        .forensic-title { color: #c53030; font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        
+        .hash-container { background: #ffffff; border: 1px solid #e2e8f0; font-family: 'Courier New', Courier, monospace; font-size: 11px; padding: 8px; border-radius: 6px; word-break: break-all; margin-top: 4px; color: #4a5568; box-shadow: inset 0 1px 3px rgba(0,0,0,0.05); }
 
+        @keyframes zoomIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
         @media (max-width: 768px) { 
-            .menu-grid, .stats-grid { grid-template-columns: 1fr; } 
             .page-hero { flex-direction: column; text-align: center; gap: 20px; padding: 25px; } 
             .hero-text h1 { font-size: 22px; }
         }
@@ -151,8 +159,8 @@ $verifierName = isset($_SESSION['name']) ? $_SESSION['name'] : 'Verifier';
         </div>
 
         <div id="card-camera" class="card active">
-            <h2><i class="fa-solid fa-expand"></i> Full-Page Document QR Scanner</h2>
-            <p style="color:#666; font-size:13px; margin-bottom:15px;">Position the whole printed document page or digital sheet inside the viewfinder area.</p>
+            <h2><i class="fa-solid fa-expand"></i> Full-Page Document OCR Scanner</h2>
+            <p style="color:#666; font-size:13px; margin-bottom:15px;">Position the whole printed document page flatly inside the camera frame below.</p>
             
             <div class="camera-lock-box" id="desktop-camera-warning">
                 <i class="fa-solid fa-laptop-code"></i>
@@ -160,7 +168,18 @@ $verifierName = isset($_SESSION['name']) ? $_SESSION['name'] : 'Verifier';
                 <p style="margin: 0; font-size: 13px;">Live camera scanner is optimized for mobile/tablet devices only. Please use the <strong>Upload PDF</strong> tab for desktop verification.</p>
             </div>
 
-            <div id="reader-viewport"></div>
+            <div class="camera-container" id="live-camera-area" style="display:none; position: relative;">
+                <video id="webcam-stream" autoplay playsinline></video>
+                <div class="viewfinder-guide"></div>
+                
+                <button type="button" id="torch-btn" onclick="toggleFlashlight()" style="position: absolute; top: 15px; left: 20px; background: rgba(0,0,0,0.6); border: 2px solid white; color: white; width: 45px; height: 45px; border-radius: 50%; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 12; transition: 0.2s;" title="Toggle Flashlight">
+                    <i class="fa-solid fa-bolt"></i>
+                </button>
+
+                <button type="button" class="capture-trigger-btn" onclick="captureAndVerify()">
+                    <i class="fa-solid fa-camera-retro"></i> CAPTURE & VERIFY DOCUMENT
+                </button>
+            </div>
         </div>
 
         <div id="card-pdf" class="card">
@@ -173,9 +192,14 @@ $verifierName = isset($_SESSION['name']) ? $_SESSION['name'] : 'Verifier';
             <form id="hidden-verify-form" action="process_verification.php" method="POST" enctype="multipart/form-data" style="display:none;">
                 <input type="hidden" name="extracted_hash" id="final_extracted_hash">
                 <input type="file" name="pdf_doc" id="hidden_pdf_file">
-                <input type="hidden" name="verify_type" value="pdf">
+                <input type="hidden" name="verify_type" id="verify_type_field" value="pdf">
             </form>
         </div>
+
+        <form id="camera-verify-form" action="process_verification.php" method="POST" enctype="multipart/form-data" style="display:none;">
+            <input type="file" name="file" id="camera_blob_file">
+            <input type="hidden" name="verify_type" value="camera">
+        </form>
 
         <div class="card active" style="display: block;">
             <h2><i class="fa-solid fa-keyboard"></i> Manual Entry Backup</h2>
@@ -191,8 +215,7 @@ $verifierName = isset($_SESSION['name']) ? $_SESSION['name'] : 'Verifier';
         <div class="card active" style="display: block; border-left: 5px solid var(--dark-blue);">
             <h2><i class="fa-solid fa-circle-info"></i> Verification Guide</h2>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
-                <div class="status-item"><span class="badge status-authentic">VALID / ACTIVE</span></div>
-                <div class="status-item"><span class="badge status-revoked-guide">REVOKED</span></div>
+                <div class="status-item"><span class="badge status-authentic">REGISTERED</span></div>
                 <div class="status-item"><span class="badge status-invalid">TAMPERED</span></div>
             </div>
         </div>
@@ -202,54 +225,121 @@ $verifierName = isset($_SESSION['name']) ? $_SESSION['name'] : 'Verifier';
 <?php 
 if (isset($_GET['result'])): 
     $resType = $_GET['result'];
-    $isRevoked = isset($_GET['revoked']) && $_GET['revoked'] == 'true';
     $isTampered = isset($_GET['tampered']) && $_GET['tampered'] == 'true';
     
     $cardColor = "var(--status-failed)"; $statusIcon = "fa-circle-question"; $statusText = "No Record Found";
 
     if ($isTampered) { $cardColor = "var(--status-tampered)"; $statusIcon = "fa-triangle-exclamation"; $statusText = "TAMPERED DATA!"; } 
-    elseif ($resType == 'success') {
-        if ($isRevoked) { $cardColor = "var(--status-revoked)"; $statusIcon = "fa-circle-xmark"; $statusText = "Document Revoked"; } 
-        else { $cardColor = "var(--status-success)"; $statusIcon = "fa-circle-check"; $statusText = "Authentic Record Found"; }
-    }
+    elseif ($resType == 'success') { $cardColor = "var(--status-success)"; $statusIcon = "fa-circle-check"; $statusText = "Authentic Record Found"; }
 ?>
 <div class="status-overlay" id="resultOverlay">
-    <div class="highlight-card">
+    <div class="highlight-card" style="position: relative;">
+        
+        <button onclick="closeResult()" style="position: absolute; top: 15px; right: 20px; background: transparent; border: none; color: rgba(255,255,255,0.7); font-size: 22px; cursor: pointer; transition: 0.2s; z-index: 10;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.7)'" title="Close">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+
         <div class="highlight-header" style="background-color: <?php echo $cardColor; ?>;">
             <i class="fa-solid <?php echo $statusIcon; ?>"></i>
             <h2><?php echo $statusText; ?></h2>
         </div>
+        
         <div class="highlight-body">
-            <?php if ((isset($_GET['hash'])) && ($resType == 'success' || $isTampered)): 
+            <?php if (isset($_GET['hash'])): 
                 $hash = mysqli_real_escape_string($conn, $_GET['hash']);
-                $sql = "SELECT * FROM (
-                            SELECT 'MC' as type, CONCAT('MCUTHM', LPAD(m.mcID, 6, '0')) as docID, m.patientName, m.matric_staff_no, dp.name as doctor_name, m.documentHash, m.status, m.startDate as val1, m.endDate as val2 FROM mc m LEFT JOIN doctor_profiles dp ON m.doctorId = dp.doctorId
-                            UNION ALL
-                            SELECT 'TIMESLIP' as type, CONCAT('TSUTHM', LPAD(t.slipID, 6, '0')) as docID, t.patientName, t.matric_staff_no, dp.name as doctor_name, t.documentHash, t.status, t.timeIn as val1, t.timeOut as val2 FROM timeslip t LEFT JOIN doctor_profiles dp ON t.doctorId = dp.doctorId
-                        ) AS combined WHERE combined.documentHash = ?";
-                $stmt = $conn->prepare($sql); $stmt->bind_param("s", $hash); $stmt->execute(); $doc = $stmt->get_result()->fetch_assoc();
-                if ($doc): ?>
-                <div class="detail-item" style="background: #eef2f7; border-left: 4px solid var(--header-bg); margin-bottom: 15px;">
-                    <span><i class="fa-solid fa-hashtag"></i> Reference:</span><strong style="color: var(--header-bg); font-size: 16px;"><?php echo htmlspecialchars($doc['docID']); ?></strong>
-                </div>
-                <div class="detail-item"><span>Patient Name:</span><strong><?php echo strtoupper(htmlspecialchars($doc['patientName'])); ?></strong></div>
-                <div class="detail-item"><span>Matric / Staff No:</span><strong><?php echo strtoupper(htmlspecialchars($doc['matric_staff_no'])); ?></strong></div>
-                <div class="detail-item"><span>Issuing Doctor:</span><strong>Dr. <?php echo htmlspecialchars($doc['doctor_name']); ?></strong></div>
-                <div class="info-row">
-                    <div class="info-label"><i class="fas fa-clock"></i> Timeline:</div>
-                    <div class="info-value"><?php echo ($doc['type'] === 'MC') ? date('d M Y', strtotime($doc['val1'])) . " - " . date('d M Y', strtotime($doc['val2'])) : htmlspecialchars($doc['val1']) . " - " . htmlspecialchars($doc['val2']); ?></div>
-                </div>                    
-                <div class="detail-item" style="margin-top: 15px; border-top: 1px dashed #ddd; padding-top: 15px;">
-                    <span>Blockchain Integrity:</span><strong style="color:<?php echo $cardColor; ?>;"><?php echo ($isTampered) ? "FAILED ✘ (Data Mismatch)" : "VERIFIED ✓ (Secured)"; ?></strong>
-                </div>
-            <?php endif; endif; ?>
+                
+                if ($resType === 'not_found'): ?>
+                    <div style="text-align: center; padding: 20px 10px;">
+                        <i class="fa-solid fa-folder-open" style="font-size: 50px; color: var(--status-failed); margin-bottom: 15px; display: block;"></i>
+                        <h3 style="color: var(--dark-blue); margin-bottom: 8px;">Document Unregistered</h3>
+                        <p style="font-size:13px; color:#666; margin: 0 0 15px 0;">This cryptographic record does not exist anywhere within clinic systems.</p>
+                        <div class="hash-container" style="margin-top: 20px; background: #f8f9fa; border: 1px dashed #cbd5e0; text-align: left;">
+                            <strong>Generated Hash State:</strong><br>
+                            <span style="color: #c53030;">❌ 0x<?php echo htmlspecialchars($_GET['hash']); ?></span>
+                        </div>
+                    </div>
+                <?php else: 
+                    // ─── 💡 DIBAIKI: JIKA DATA TAMPERED, KITA FORCE PAPARAN KOTAK FORENSIK TANPA SEKATAN SQL ───
+                    if ($isTampered): ?>
+                        <div class="forensic-alert-box">
+                            <div class="forensic-title">
+                                <i class="fa-solid fa-fingerprint"></i> Cryptographic Integrity Mismatch Detected
+                            </div>
+                            <p style="color: #742a2a; font-size: 13px; margin: 0 0 10px 0; font-weight: 500;">
+                                Warning: The calculated document fingerprint does not align with the state registered on the blockchain.
+                            </p>
+                            <strong>Corrupted Signature State:</strong>
+                            <div class="hash-container" style="color: #c53030; background: #fff;">
+                                ⚠️ 0x<?php echo htmlspecialchars($_GET['hash']); ?>
+                            </div>
+                        </div>
+                        
+                        <div class="detail-item" style="background: #eef2f7; border-left: 4px solid var(--status-tampered); margin-bottom: 15px;">
+                            <span><i class="fa-solid fa-hashtag"></i> Verification Status:</span>
+                            <strong style="color: var(--status-tampered); font-size: 14px;">SECURITY BLOCK ACTIVATED</strong>
+                        </div>
+                        <p style="color: #718096; font-size: 11px; font-style: italic; margin-top: 10px; margin-bottom: 0; text-align: center;">
+                            *This fraudulent signature attempt has been hard-logged inside the secure audit trails for investigation.
+                        </p>
+
+                    <?php else: 
+                        // JALUR ASAL: Hanya dipanggil jika dokumen AUTHENTIC / SAH (Result Success)
+                        $sql = "SELECT * FROM (
+                                    SELECT 'MC' as type, CONCAT('MCUTHM', LPAD(m.mcID, 6, '0')) as docID, m.patientName, m.matric_staff_no, dp.name as doctor_name, m.documentHash, m.status, m.startDate as val1, m.endDate as val2 FROM mc m LEFT JOIN doctor_profiles dp ON m.doctorId = dp.doctorId
+                                    UNION ALL
+                                    SELECT 'TIMESLIP' as type, CONCAT('TSUTHM', LPAD(t.slipID, 6, '0')) as docID, t.patientName, t.matric_staff_no, dp.name as doctor_name, t.documentHash, t.status, t.timeIn as val1, t.timeOut as val2 FROM timeslip t LEFT JOIN doctor_profiles dp ON t.doctorId = dp.doctorId
+                                ) AS combined WHERE combined.documentHash = ? OR combined.documentHash = CONCAT('0x', ?)";
+                        $stmt = $conn->prepare($sql); $stmt->bind_param("ss", $hash, $hash); $stmt->execute(); $doc = $stmt->get_result()->fetch_assoc();
+                        if ($doc): ?>
+                            
+                            <div class="detail-item" style="background: #eef2f7; border-left: 4px solid var(--status-success); margin-bottom: 15px;">
+                                <span><i class="fa-solid fa-hashtag"></i> Reference ID:</span><strong style="color: var(--status-success); font-size: 16px;"><?php echo htmlspecialchars($doc['docID']); ?></strong>
+                            </div>
+                            <div class="detail-item"><span>Patient Name:</span><strong><?php echo strtoupper(htmlspecialchars($doc['patientName'])); ?></strong></div>
+                            <div class="detail-item"><span>Matric / Staff No:</span><strong><?php echo strtoupper(htmlspecialchars($doc['matric_staff_no'])); ?></strong></div>
+                            <div class="detail-item"><span>Issuing Doctor:</span><strong>Dr. <?php echo htmlspecialchars($doc['doctor_name']); ?></strong></div>
+                            
+                            <div class="info-row">
+                                <div class="info-label"><i class="fas fa-clock"></i> Clinical Timeline:</div>
+                                <div class="info-value"><?php echo ($doc['type'] === 'MC') ? date('d M Y', strtotime($doc['val1'])) . " - " . date('d M Y', strtotime($doc['val2'])) : htmlspecialchars($doc['val1']) . " - " . htmlspecialchars($doc['val2']); ?></div>
+                            </div>                    
+                            
+                            <div class="detail-item" style="margin-top: 15px; border-top: 1px dashed #ddd; padding-top: 15px;">
+                                <span>Blockchain Ledger Status:</span>
+                                <strong style="color:var(--status-success);">VERIFIED ✓ (Secured)</strong>
+                            </div>
+
+                            <?php if (!empty($_GET['bc_time'])): 
+                                $formattedBCDate = date("d F Y, h:i A", (int)$_GET['bc_time']);
+                            ?>
+                                <div class="blockchain-proof-box">
+                                    <div class="blockchain-proof-title">
+                                        <i class="fa-solid fa-cubes-blockchain" style="color: #2f855a;"></i> Sepolia Ledger Integrity Verification
+                                    </div>
+                                    <div style="margin-bottom: 8px;">
+                                        <strong>Block Timestamp:</strong>
+                                        <div class="hash-container">🕒 <?php echo $formattedBCDate; ?></div>
+                                    </div>
+                                    <div>
+                                        <strong>Immutable Document Hash:</strong>
+                                        <div class="hash-container" style="color:#2b6cb0;">🔑 <?php echo htmlspecialchars($doc['documentHash']); ?></div>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+
+                        <?php endif; ?>
+                    <?php endif; ?>
+                <?php endif; ?>
+            <?php endif; ?>
         </div>
-        <button class="close-overlay" onclick="closeResult()">DISMISS</button>
     </div>
 </div>
 <?php endif; ?>
 
 <script>
+    let localStream = null;
+    let isTorchOn = false;
+
     function toggleSidebar() {
         document.getElementById('sidebar').classList.toggle('closed');
         document.getElementById('mainWrapper').classList.toggle('full-width');
@@ -259,13 +349,10 @@ if (isset($_GET['result'])):
         window.history.replaceState({}, document.title, window.location.pathname);
     }
 
-    // ====== LOGIK SEMAKAN JENIS PERANTI (MOBILE VS DESKTOP) ======
     function isMobileDevice() {
         return /Mobi|Android|iPhone|iPad|Tablet|PlayBook|Silicon/i.test(navigator.userAgent);
     }
 
-    let cameraScanner = null;
-    
     function switchView(mode) {
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
         document.getElementById('btn-' + mode).classList.add('active');
@@ -277,56 +364,104 @@ if (isset($_GET['result'])):
         if (mode === 'camera') { 
             launchLiveCamera(); 
         } else { 
-            if (cameraScanner) { cameraScanner.clear(); } 
+            stopCamera();
         }
     }
 
     function launchLiveCamera() {
         if (!isMobileDevice()) {
             document.getElementById('desktop-camera-warning').style.display = 'block';
-            document.getElementById('reader-viewport').style.display = 'none';
+            document.getElementById('live-camera-area').style.display = 'none';
             return;
         }
 
         document.getElementById('desktop-camera-warning').style.display = 'none';
-        document.getElementById('reader-viewport').style.display = 'block';
+        document.getElementById('live-camera-area').style.display = 'block';
 
-        cameraScanner = new Html5QrcodeScanner("reader-viewport", { 
-            fps: 30, 
-            qrbox: function(viewfinderWidth, viewfinderHeight) {
-                var minEdgeFraction = 0.8; 
-                var minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
-                var qrboxSize = Math.floor(minEdgeSize * minEdgeFraction);
-                return { width: qrboxSize, height: qrboxSize };
-            },
-            rememberLastUsedCamera: true,
-            aspectRatio: 1.0
+        isTorchOn = false;
+        const torchBtn = document.getElementById('torch-btn');
+        if(torchBtn) torchBtn.style.background = "rgba(0,0,0,0.6)";
+
+        navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }        
+        })
+        .then(function(stream) {
+            localStream = stream;
+            const video = document.getElementById('webcam-stream');
+            video.srcObject = stream;
+        })
+        .catch(function(err) {
+            Swal.fire("Camera Error", "Failed to access device camera.", "error");
         });
-        
-        cameraScanner.render((decodedText) => {
-            cameraScanner.clear();
-            
-            // AUTOMATED: Imbas, kesan, dan terus hantar data rahsia ke backend secara senyap
-            Swal.fire({
-                title: 'QR Detected!',
-                text: 'Extracting cryptographic ledger payload...',
-                icon: 'success',
-                timer: 900,
-                showConfirmButton: false,
-                willClose: () => {
-                    document.getElementById('final_extracted_hash').value = decodedText;
-                    
-                    const form = document.getElementById('hidden-verify-form');
-                    form.querySelector('input[name="verify_type"]').value = 'camera';
-                    document.getElementById('hidden_pdf_file').value = ""; 
-                    
-                    form.submit();
-                }
-            });
-        }, (err) => {});
     }
 
-async function handleSmartPDFUpload(event) {
+    function stopCamera() {
+        if (localStream) {
+            const track = localStream.getVideoTracks()[0];
+            if (track && track.getCapabilities().torch) {
+                track.applyConstraints({ advanced: [{ torch: false }] });
+            }
+            localStream.getTracks().forEach(track => track.stop());
+            localStream = null;
+        }
+    }
+
+    function toggleFlashlight() {
+        if (!localStream) return;
+        const track = localStream.getVideoTracks()[0];
+        if (!track || !track.getCapabilities().torch) {
+            Swal.fire({ icon: 'info', title: 'Flashlight Unusable', text: 'Flashlight function is unsupported on this browser lenses.', timer: 2000, showConfirmButton: false });
+            return;
+        }
+        isTorchOn = !isTorchOn;
+        track.applyConstraints({ advanced: [{ torch: isTorchOn }] })
+        .then(() => {
+            const torchBtn = document.getElementById('torch-btn');
+            if (isTorchOn) {
+                torchBtn.style.background = "#ecc94b"; 
+                torchBtn.style.color = "#1a202c";
+            } else {
+                torchBtn.style.background = "rgba(0,0,0,0.6)"; 
+                torchBtn.style.color = "white";
+            }
+        })
+        .catch(err => { console.error("Flashlight failure:", err); });
+    }
+
+    function captureAndVerify() {
+        const video = document.getElementById('webcam-stream');
+        if (!video || !localStream) {
+            Swal.fire("Error", "Camera is not available.", "error");
+            return;
+        }
+
+        Swal.fire({
+            title: 'Processing OCR...',
+            text: 'Analyzing document structures and generating hash state...',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        const context = canvas.getContext('2d');
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        canvas.toBlob(function(blob) {
+            stopCamera();
+            const fileOfBlob = new File([blob], "captured_src.png", { type: "image/png" });
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(fileOfBlob);
+            
+            const camForm = document.getElementById('camera-verify-form');
+            document.getElementById('camera_blob_file').files = dataTransfer.files;
+            camForm.submit();
+        }, 'image/png');
+    }
+
+    async function handleSmartPDFUpload(event) {
         const file = event.target.files[0]; if (!file) return;
         document.getElementById('file-name-display').innerText = "Scanning: " + file.name + "...";
         try {
@@ -346,42 +481,38 @@ async function handleSmartPDFUpload(event) {
 
             if (qrCode) {
                 const qrText = qrCode.data.trim();
-                let finalHashOrPayload = "";
+                let finalHashOrPayload = qrText;
                 let isPayloadVersion = false;
 
-                // ====== PEMBETULAN KHAS: SEMAK SAMA ADA INPUT ADALAH URL ATAU TEKS MENTAH ======
                 if (qrText.startsWith('http://') || qrText.startsWith('https://')) {
                     const url = new URL(qrText);
                     if (url.searchParams.get("payload")) {
-                        finalHashOrPayload = qrText; // Hantar pautan penuh payload
+                        finalHashOrPayload = qrText;
                         isPayloadVersion = true;
                     } else if (url.searchParams.get("hash")) {
                         finalHashOrPayload = url.searchParams.get("hash");
                     }
-                } else {
-                    // Jika QR cuma mengandungi teks HASH mentah sebulat-bulatnya (seperti fail anda)
-                    finalHashOrPayload = qrText;
                 }
 
-                if(finalHashOrPayload) {
-                    document.getElementById('final_extracted_hash').value = finalHashOrPayload;
-                    const dataTransfer = new DataTransfer(); dataTransfer.items.add(file);
-                    document.getElementById('hidden_pdf_file').files = dataTransfer.files;
-                    
-                    // Set jenis pengesahan dengan selamat
-                    const form = document.getElementById('hidden-verify-form');
-                    form.querySelector('input[name="verify_type"]').value = isPayloadVersion ? 'camera' : 'pdf';
-                    
-                    form.submit();
-                } else { Swal.fire("Error", "No valid cryptographic parameters found in QR.", "error"); }
+                document.getElementById('final_extracted_hash').value = finalHashOrPayload;
+                const dataTransfer = new DataTransfer(); dataTransfer.items.add(file);
+                document.getElementById('hidden_pdf_file').files = dataTransfer.files;
+                
+                const form = document.getElementById('hidden-verify-form');
+                document.getElementById('verify_type_field').value = isPayloadVersion ? 'camera' : 'pdf';
+                form.submit();
             } else {
-                Swal.fire("No QR Detected", "System failed to auto-scan QR from this PDF.", "warning");
-                document.getElementById('file-name-display').innerText = "Click to Upload & Auto-Scan PDF";
+                const dataTransfer = new DataTransfer(); dataTransfer.items.add(file);
+                document.getElementById('hidden_pdf_file').files = dataTransfer.files;
+                document.getElementById('final_extracted_hash').value = "FORCE_DECODE_VIA_PYTHON";
+                
+                const form = document.getElementById('hidden-verify-form');
+                document.getElementById('verify_type_field').value = 'pdf';
+                form.submit();
             }
         } catch (err) { Swal.fire("System Error", "Fail to parse PDF structure.", "error"); }
     }
 
-    // Mulakan sistem dengan cubaan mengaktifkan kamera secara auto-detect
     document.addEventListener("DOMContentLoaded", function() { switchView('camera'); });
 </script>
 </body>
