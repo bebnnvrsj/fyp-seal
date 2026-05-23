@@ -1,12 +1,12 @@
 <?php
-$servername = "localhost";
-$username = "root";
-$password = "";
-$dbname = "meddoqs"; // Ganti dengan nama database anda
+$host = "localhost"; // Ini kekal localhost kerana PHP dan MySQL duduk di server yang sama
+$db_user = "sealpje"; // Username cPanel anda (Atau username db spesifik jika anda cipta di Wizard)
+$db_pass = "WGbHq55G#*qBGR*n"; // Password cPanel / DB anda
+$db_name = "sealpje_meddoqs"; // Nama database baharu di cPanel tadi
 
-$conn = mysqli_connect($servername, $username, $password, $dbname);
+$conn = new mysqli($host, $db_user, $db_pass, $db_name);
 
-if (!$conn) {
-    die("Connection failed: " . mysqli_connect_error());
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
 }
 ?>
