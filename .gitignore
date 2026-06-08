@@ -1,0 +1,4 @@
+*
+!app.py
+!.gitignore
+config_smtp.php
