@@ -3,6 +3,14 @@
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
+// PANGGIL FAIL RAHSIA DARI FOLDER UTAMA (ROOT)
+if (file_exists('../config_smtp.php')) {
+    require_once '../config_smtp.php';
+} else {
+    define('SMTP_USER', 'placeholder_github@gmail.com');
+    define('SMTP_PASS', 'placeholder');
+}
+
 require '../vendor/phpmailer/src/Exception.php';
 require '../vendor/phpmailer/src/PHPMailer.php';
 require '../vendor/phpmailer/src/SMTP.php';
@@ -36,8 +44,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $mail->isSMTP();
             $mail->Host       = 'smtp.gmail.com';
             $mail->SMTPAuth   = true;
-            $mail->Username   = 'adamuqrii@gmail.com'; 
-            $mail->Password   = 'jaujitzxavbqcvic';    // App Password dari Google
+            $mail->Username   = SMTP_USER; 
+            $mail->Password   = SMTP_PASS;    // App Password dari Google
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
             $mail->Port       = 587;
 

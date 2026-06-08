@@ -4,6 +4,14 @@ use Dompdf\Options;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
+// PANGGIL FAIL RAHSIA DARI FOLDER UTAMA (ROOT)
+if (file_exists('../config_smtp.php')) {
+    require_once '../config_smtp.php';
+} else {
+    define('SMTP_USER', 'placeholder_github@gmail.com');
+    define('SMTP_PASS', 'placeholder');
+}
+
 session_start();
 require '../db_connect.php';
 require 'vendor/autoload.php';
@@ -261,8 +269,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $mail->isSMTP(); 
                 $mail->Host = 'smtp.gmail.com'; 
                 $mail->SMTPAuth = true;
-                $mail->Username = 'adamuqrii@gmail.com'; 
-                $mail->Password = 'jaujitzxavbqcvic';
+                $mail->Username = SMTP_USER; 
+                $mail->Password = SMTP_PASS;
                 $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS; 
                 $mail->Port = 587;
                 $mail->setFrom('no-reply@seal.com', 'SEAL Medical Portal');

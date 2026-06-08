@@ -4,6 +4,13 @@ use Dompdf\Options;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
+if (file_exists('../config_smtp.php')) {
+    require_once '../config_smtp.php';
+} else {
+    define('SMTP_USER', 'placeholder_github@gmail.com');
+    define('SMTP_PASS', 'placeholder');
+}
+
 session_start();
 require '../db_connect.php';
 require 'vendor/autoload.php'; 
@@ -161,7 +168,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $dompdf = new Dompdf($options);
 
             $serverIP = "seal-uthm.site"; // Alamat IP hos pelayan Laragon anda
-            $verificationURL = "http://" . $serverIP . "/login/login.php";
+            $verificationURL = "https://" . $serverIP . "/login/login.php";
             $qrCodeURL = "https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=" . urlencode($verificationURL);
             
             $html = "
@@ -284,8 +291,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $mail->isSMTP();
                 $mail->Host = 'smtp.gmail.com'; 
                 $mail->SMTPAuth = true;
-                $mail->Username = 'adamuqrii@gmail.com'; 
-                $mail->Password = 'jaujitzxavbqcvic';
+                $mail->Username = SMTP_USER; 
+                $mail->Password = SMTP_PASS;
                 $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS; 
                 $mail->Port = 587;
                 
