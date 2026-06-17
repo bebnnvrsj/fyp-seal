@@ -421,7 +421,7 @@ $total_docs = $result ? $result->num_rows : 0;
         }
 
         try {
-            const etherscanUrl = `https://api-sepolia.etherscan.io/api?module=proxy&action=eth_getTransactionReceipt&txhash=${txHash}&apikey=9K6Y8XX79U1VI6HZV84XW6X8B4KK98MZ7R`;
+            const etherscanUrl = `https://api-sepolia.etherscan.io/api?module=proxy&action=eth_getTransactionReceipt&txhash=${txHash}`;
             
             const response = await fetch(etherscanUrl, {
                 method: 'GET',
@@ -447,7 +447,7 @@ $total_docs = $result ? $result->num_rows : 0;
                 }
 
                 // Get blockheight from Sepolia
-                const blockHeightResponse = await fetch(`https://api-sepolia.etherscan.io/api?module=proxy&action=eth_blockNumber&apikey=9K6Y8XX79U1VI6HZV84XW6X8B4KK98MZ7R`, { mode: 'cors' });
+                const blockHeightResponse = await fetch(`https://api-sepolia.etherscan.io/api?module=proxy&action=eth_blockNumber`, { mode: 'cors' });
                 const blockHeightData = await blockHeightResponse.json();
                 let liveConfirmations = "Verified (Active)";
                 
