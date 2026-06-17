@@ -1,6 +1,6 @@
 <?php
 session_start();
-// Verify administration security session parameters
+// Only admin users can access this page
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../login/login.php");
     exit();

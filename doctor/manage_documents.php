@@ -2,7 +2,7 @@
 date_default_timezone_set('Asia/Kuala_Lumpur');
 session_start();
 
-// Sekatan keselamatan eksklusif portal doktor
+// Only docotor can access this page
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'doctor') {
     header("Location: ../login/login.php");
     exit();
@@ -12,14 +12,14 @@ require '../db_connect.php';
 $doctorID = $_SESSION['userID'];
 $doctor_name = isset($_SESSION['name']) ? $_SESSION['name'] : 'Doctor';
 
-// Susunan kolum yang dibenarkan untuk fungsi sorting
+// Define allowed column whitelist for sorting operations to prevent invalid or unsafe queries
 $sort_column = isset($_GET['sort']) ? $_GET['sort'] : 'issueDate';
 $sort_order = isset($_GET['order']) ? $_GET['order'] : 'DESC';
 $allowed_columns = ['documentID', 'patientName', 'documentType', 'issueDate', 'status'];
 if (!in_array($sort_column, $allowed_columns)) { $sort_column = 'issueDate'; }
 $sort_order = ($sort_order === 'ASC') ? 'ASC' : 'DESC';
 
-// Query penyatuan rekod MC & Timeslip milik doktor yang sedang log masuk
+// Query combined MC and Time Slip records belonging to the currently logged-in doctor
 $sql = "SELECT * FROM (
             SELECT mcID AS documentID, patientName, 'mc' AS documentType, 
                    startDate AS issueDate, endDate AS expiryDate, status, documentHash 
@@ -38,7 +38,6 @@ $stmt->bind_param("ii", $doctorID, $doctorID);
 $stmt->execute();
 $result = $stmt->get_result();
 
-// ─── DIBAIKI: STATUS MENGIKUT ARAHAN SUPERVISOR (TIADA EXPIRED) ───
 function getDisplayStatus($status) {
     $statusUpper = strtoupper(trim($status));
     if ($statusUpper === 'REVOKED') return 'Revoked';
@@ -313,19 +312,15 @@ function toggleSidebar() {
     mainWrapper.classList.toggle('full-width');
 }
 
-// ─── 🟢 FIX MUKTAMAD: Fungsi Penapisan Client-Side Tab Bujur Kaca iPhone (All / MC / Time Slip) ───
 function filterTableType(type, btn) {
-    // Tukar kelas butang aktif
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
 
-    // Ambil semua elemen baris dokumen
     const rows = document.querySelectorAll('.doc-row');
     rows.forEach(row => {
         if (type === 'ALL') {
-            row.style.display = ""; // Papar semua
+            row.style.display = ""; 
         } else {
-            // Bandingkan atribut data-type dengan jenis tab yang diklik
             row.style.display = (row.getAttribute('data-type') === type) ? "" : "none";
         }
     });

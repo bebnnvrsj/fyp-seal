@@ -6,7 +6,7 @@ if (isset($_POST['email']) && isset($_POST['password'])) {
     $username_input = trim($_POST['email']);
     $password_input = $_POST['password'];
 
-    // SQL dengan LEFT JOIN untuk menarik nama daripada jadual profil yang berkaitan
+    // SQL query using LEFT JOIN to retrieve names from the related profile tables 
     $sql = "SELECT u.*, 
                    d.name AS doctor_name, 
                    a.name AS admin_name, 
@@ -29,16 +29,16 @@ if (isset($_POST['email']) && isset($_POST['password'])) {
         if ($result->num_rows === 1) {
             $userData = $result->fetch_assoc();
 
-            // Semak jika akaun tidak aktif
+            // Check whether the account is inactive
             if ($userData['status'] === 'inactive') {
                 header("Location: login.php?error=account_disabled");
                 exit();
             }
 
-            // Sahkan kata laluan
+            // Verify the password
             if (password_verify($password_input, $userData['password'])) {
                 
-                // Tentukan nama sebenar dan ID staf mengikut peranan (role)
+                // Initialize default user display values (name and staff ID) based on user role
                 $realName = 'User';
                 $staffID = '';
 
@@ -53,7 +53,7 @@ if (isset($_POST['email']) && isset($_POST['password'])) {
                     $staffID = ''; // Verifier biasanya tiada staff number
                 }
 
-                // Simpan maklumat ke dalam session pending untuk pengesahan 2FA
+                // Store temporary user data in session for pending 2FA verification process
                 $_SESSION['2fa_pending'] = [
                     'userID'       => $userData['userID'],
                     'username'     => $userData['username'],

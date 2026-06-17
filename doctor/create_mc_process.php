@@ -27,7 +27,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'doctor') {
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $doctorID = $_SESSION['userID'];
     
-    // Ambil info data profil doktor
+    // Take doctor information for PDF generation and record-keeping
     $sql_dr = "SELECT name, mmc_number FROM doctor_profiles WHERE doctorID = ?";
     $stmt_dr = $conn->prepare($sql_dr);
     $stmt_dr->bind_param("i", $doctorID);
@@ -46,17 +46,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $dbEndDate   = $_POST['end_date'];
     $currentTime = date("H:i:s");
 
-    // Formatkan tarikh untuk paparan teks PDF & Hashing
+    // Date formatting for PDF display (e.g., "01 Jan 2024")
     $startDateStr = date('d M Y', strtotime($dbStartDate));
     $endDateStr   = date('d M Y', strtotime($dbEndDate));
 
-    // ─── 🆕 INTERACTIVE DESIGN: LOGIK PENGIRAAN JUMLAH HARI MC DINAMIK ───
+    // Calculate dynamic MC duration in days by computing the difference between start and end dates
     $date1 = new DateTime($dbStartDate);
     $date2 = new DateTime($dbEndDate);
     $interval = $date1->diff($date2);
-    $totalDaysCount = $interval->days + 1; // Ditambah 1 so that  tarikh yang sama dikira sebagai 1 hari
+    $totalDaysCount = $interval->days + 1; //Include same day count as 1 day
 
-    // Kamus statik ringkas (Maksimum 30 Hari - Sangat ringan untuk pelayan awan)
+    // Number to words mapping for MC duration display in PDF (up to 30 days)
     $numberToWords = [
         1 => 'One (1)', 2 => 'Two (2)', 3 => 'Three (3)', 4 => 'Four (4)', 5 => 'Five (5)',
         6 => 'Six (6)', 7 => 'Seven (7)', 8 => 'Eight (8)', 9 => 'Nine (9)', 10 => 'Ten (10)',
@@ -66,7 +66,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         26 => 'Twenty-Six (26)', 27 => 'Twenty-Seven (27)', 28 => 'Twenty-Eight (28)', 29 => 'Twenty-Nine (29)', 30 => 'Thirty (30)'
     ];
 
-    // Jika melebihi 30 hari (cth: kes berbulan), sistem automatik memulangkan angka mentah seperti "45" secara selamat
+    // Return raw day count safely if MC duration exceeds 30 days (e.g., long-term cases)
     $dayTextDisplay = isset($numberToWords[$totalDaysCount]) ? $numberToWords[$totalDaysCount] : $totalDaysCount;
 
     // generate document hash  
@@ -76,13 +76,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // =========================================================================
     // ⚙️ AUTOMATED TAMPER DETECTION: BINA PAYLOAD KRIPTOGRAFI
     // =========================================================================
-    // 💡 DIBAIKI: Menggantikan $startDate (undefined) kepada $dbStartDate tulen
+    // Build cryptographic payload for automated tamper detection using document hash, patient identity and verified start date
     $raw_payload = $documentHash . '|' . $patientName . '|' . $matric_staff_no . '|' . $dbStartDate;
 
-    // Encode menjadi string selamat Base64 supaya tidak rosak di dalam struktur URL QR Code
+    // Encode payload into Base64 to ensure safe trasmission inside QR code URL structure
     $encrypted_payload = base64_encode($raw_payload);
 
-    // Simpan payload ini ke dalam session supaya boleh dibaca oleh janji generate_pdf.php
+    // Store encoded payload in session for retreival during PDF generation
     $_SESSION['pdf_qr_payload'] = $encrypted_payload;
     $_SESSION['pdf_doc_hash'] = $documentHash;
     
@@ -115,33 +115,33 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    // 💡 MEKANISMA ROBUST FALLBACK JIKA SERVER CRYPTO RELAYER OFFLINE SEMASA TESTING
+    // Robust fallback mechanism for offline blockchain relayer during testing or API failure scenarios
     if (empty($blockchainTx) || substr($blockchainTx, 0, 2) !== '0x') {
         error_log("SEAL Blockchain API Node Offline / Error: " . $apiResponse);
         $blockchainTx = "0x" . hash('sha256', $documentHash . time() . "LOCAL_FALLBACK_MOCK_TX");
     }    
     
-    // Penjanaan Rantaian Rekod Blok Audit Dalaman (Internal Ledger) tetap berjalan utuh
+    // Maintain continuous generation of internal audit blockchain ledger records for system integrity tracking
     $systemSig = "SYSTEM_MC_SIG_" . bin2hex(random_bytes(16));    
     $lastBlockSql = "SELECT blockHash FROM blockchainrecord ORDER BY transactionID DESC LIMIT 1";
     $lastBlockResult = $conn->query($lastBlockSql);
     $previousHash = ($lastBlockResult->num_rows > 0) ? $lastBlockResult->fetch_assoc()['blockHash'] : str_repeat("0", 64);
     $blockHash = hash('sha256', $documentHash . $previousHash . $blockchainTx);
 
-    // Bina zon DateTime seragam dengan cap masa pengiraan PHP untuk dimutasi ke pangkalan data
+    // Create a unified DateTime zone using PHP timestamp to ensure consistent storage in the database
     $currentDate = date("Y-m-d");
     $combinedDateTime = $currentDate . " " . $currentTime;
 
     $conn->begin_transaction();
     try {
-        // Simpan maklumat rekod ke dalam jadual utama MC
+        // Save record info into mc table
         $sql1 = "INSERT INTO mc (doctorID, patientName, patientNRIC, matric_staff_no, patientEmail, diagnosis, startDate, endDate, documentHash, digitalSignature, transactionHash, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', ?)";       
         $stmt1 = $conn->prepare($sql1);
         $stmt1->bind_param("isssssssssss", $doctorID, $patientName, $patientNRIC, $matric_staff_no, $patientEmail, $diagnosis, $dbStartDate, $dbEndDate, $documentHash, $systemSig, $blockchainTx, $combinedDateTime);
         $stmt1->execute();
         $newMCID = $conn->insert_id;
 
-        // Simpan pautan rantaian ke dalam jadual Blockchain Record (Audit Trail)
+        // Save blockchain link into Blockchain Record table (Audit Trail)
         $sql2 = "INSERT INTO blockchainrecord (documentHash, previousHash, blockHash) VALUES (?, ?, ?)";
         $stmt2 = $conn->prepare($sql2);
         $stmt2->bind_param("sss", $documentHash, $previousHash, $blockHash);
@@ -149,7 +149,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         $conn->commit();
 
-        // Rekod transaksi ke Sistem Audit Log Pengguna Portal
+        // Record audit log for the creation of a new MC entry
         $auditAction = "CREATE_MC";
         $formattedMCID = "MCUTHM" . str_pad($newMCID, 6, "0", STR_PAD_LEFT);
         $auditResource = "Doc ID: " . $formattedMCID . " (NRIC: " . $patientNRIC . ")";
@@ -160,14 +160,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt_audit->execute();
 
         // =========================================================================
-        // 📄 ENGINE PENJANAAN PDF (DOMPDF) & PENGHANTARAN EMEL (PHPMAILER)
+        // 📄 PDF GENERATION ENGINE (DOMPDF) & EMEL SENDING (PHPMAILER)
         // =========================================================================
         if (!empty($patientEmail) && filter_var($patientEmail, FILTER_VALIDATE_EMAIL)) {
             $options = new Options();
             $options->set('isRemoteEnabled', true); 
             $dompdf = new Dompdf($options);
 
-            $serverIP = "seal-uthm.site"; // Alamat IP hos pelayan Laragon anda
+            $serverIP = "seal-uthm.site"; //
             $verificationURL = "https://" . $serverIP . "/login/login.php";
             $qrCodeURL = "https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=" . urlencode($verificationURL);
             
@@ -253,6 +253,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             <strong>MMC No:</strong> " . htmlspecialchars($dr_result['mmc_number'] ?? 'N/A') . "
                         </div>
 
+                        <div style='font-family: monospace; font-size: 9px; color: #7f8c8d; margin-top: 4px;'>
+                            <strong>Digital Signature:</strong> " . $systemSig . "
+                        </div>
+                        
                         <div style='font-size: 1px; color: #ffffff;'>SEAL_DID:" . $doctorID . " | GEN_TIME:" . $currentTime . "</div>
                     </div>
 
@@ -285,27 +289,46 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $dompdf->render();
             $pdfOutput = $dompdf->output();
 
-            // Konfigurasi SMTP PHPmailer untuk Gmail Gateway
+            // Configure PHPMailer SMTP settings for Gmail gateway email delivery
+            // ====== BREVO HTTP API REPLACEMENT (BYPASSES FIREWALL COMPLETELY) ======
             try {
-                $mail = new PHPMailer(true);
-                $mail->isSMTP();
-                $mail->Host = 'smtp.gmail.com'; 
-                $mail->SMTPAuth = true;
-                $mail->Username = SMTP_USER; 
-                $mail->Password = SMTP_PASS;
-                $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS; 
-                $mail->Port = 587;
-                
-                $mail->setFrom('no-reply@seal.com', 'SEAL Medical Portal');
-                $mail->addAddress($patientEmail, $patientName); 
-                $mail->isHTML(true);
-                $mail->Subject = 'Digital MC - ' . strtoupper($patientName);
-                $mail->Body = "Hello $patientName,<br><br>Attached is your digital MC. ID: " . "MCUTHM" . str_pad($newMCID, 6, "0", STR_PAD_LEFT);
-                
-                $mail->addStringAttachment($pdfOutput, "MC_{$patientNRIC}.pdf");
-                $mail->send();
+                // Encode the dynamic Dompdf binary output into safe Base64 formatting
+                $base64_pdf = base64_encode($pdfOutput);
+
+                $emailData = [
+                    "sender" => ["name" => "SEAL Medical Portal", "email" => "adamuqrii@gmail.com"],
+                    "to" => [["email" => $patientEmail, "name" => $patientName]],
+                    "subject" => 'Digital MC - ' . strtoupper($patientName),
+                    "htmlContent" => "Hello " . htmlspecialchars($patientName) . ",<br><br>Attached is your digital MC. ID: MCUTHM" . str_pad($newMCID, 6, "0", STR_PAD_LEFT),
+                    "attachment" => [
+                        [
+                            "content" => $base64_pdf,
+                            "name" => "MC_{$patientNRIC}.pdf"
+                        ]
+                    ]
+                ];
+
+                // Send via standard web traffic Port 443
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, 'https://api.brevo.com/v3/smtp/email');
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($emailData));
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'accept: application/json',
+                    'api-key: ' . BREVO_API_KEY, // Safely calling the private constant from config_smtp.php
+                    'content-type: application/json'
+                ]);
+
+                $apiResponse = curl_exec($ch);
+                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+
+                if ($httpCode < 200 || $httpCode >= 300) {
+                    error_log("Brevo API MC Dispatch Error Code: " . $httpCode . " | Response: " . $apiResponse);
+                }
             } catch (Exception $e) {
-                error_log("Email Dispatch Failure Internal Error: " . $mail->ErrorInfo);
+                error_log("Email Dispatch Failure Internal Error: " . $e->getMessage());
             }
         }
 

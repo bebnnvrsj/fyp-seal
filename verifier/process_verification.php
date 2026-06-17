@@ -4,7 +4,7 @@ require '../vendor/autoload.php';
 
 session_start();
 
-// SEKATAN KESELAMATAN EKSLUSIF: Hanya benarkan akses jika verifier sudah log masuk dalam portal
+// Only verifier can log in
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'verifier') {
     header("Location: verify_document.php?result=error&message=Unauthorized+Access");
     exit();
@@ -12,18 +12,18 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'verifier') {
 
 try {
     // =========================================================================
-    // 💡 🆕 MUKTAMAD: PINTASAN MANUAL ENTRY BACKUP (BYPASS PYTHON ENGINE)
+    // MANUAL ENTRY BACKUP BYPASS (PYTHON ENGINE FALLBACK)
     // =========================================================================
     if (isset($_POST['doc_id']) && !empty($_POST['doc_id'])) {
         $inputID = strtoupper(trim($_POST['doc_id']));
         
-        // Bersihkan prefix untuk dilarutkan ke query SQL induk
+        // Extract numeric ID from formatted document ID (e.g., MCUTHM000004 → 4)
         $numericID = 0;
         if (preg_match('/(?:MCUTHM|TSUTHM)0*([1-9][0-9]*|0)/i', $inputID, $matches)) {
             $numericID = (int)$matches[1];
         }
 
-        // Cari rekod hash rujukan berdasarkan ID nombor induk daripada pangkalan data
+        // Retrieve original document hash from database using extracted ID
         $search_sql = "SELECT documentHash FROM mc WHERE mcID = ? 
                        UNION ALL 
                        SELECT documentHash FROM timeslip WHERE slipID = ?";
@@ -33,21 +33,21 @@ try {
         $src_res = $src_stmt->get_result()->fetch_assoc();
 
         if ($src_res) {
-            // Jika ID wujud, hantar rujukan hash asli terus ke paparan overlay modal verifikasi
+            // If document exists, redirect with original hash for verification overlay
             header("Location: verify_document.php?result=success&hash=" . urlencode($src_res['documentHash']));
             exit;
         } else {
-            // Jika ID tiada dalam rekod langsung, hantar status not_found
+            // If document not found, return not_found status
             header("Location: verify_document.php?result=not_found&hash=" . urlencode($inputID));
             exit;
         }
     }
 
     // =========================================================================
-    // JALUR UTAMA: SMART PDF UPLOAD -> Hantar Fail .pdf ke /process-pdf
+    // MAIN FLOW: PDF UPLOAD → Send file to Python Flask /process-pdf engine
     // =========================================================================
     $verifyType = isset($_POST['verify_type']) ? trim($_POST['verify_type']) : "pdf";
-    $rawInputHash = ""; // Kita akan overwrite nilai ini dengan hash segar dari Python Flask
+    $rawInputHash = ""; // Will be replaced with OCR result from Python engine
 
     if ($verifyType === 'pdf') {
         if (!isset($_FILES['pdf_doc'])) {
@@ -57,7 +57,7 @@ try {
 
         $pdfPath = $_FILES['pdf_doc']['tmp_name'];
 
-        // Hantar fail PDF fizikal ke API Python Flask pintu pagar /process-pdf
+        // Send PDF file to Python Flask API for OCR and hash extraction
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, 'https://seal-pdf-engine.onrender.com/process-pdf');        
         curl_setopt($ch, CURLOPT_POST, true);
@@ -78,8 +78,11 @@ try {
 
         $resultData = json_decode($response, true);
         if ($resultData && $resultData['status'] === 'success') {
-            $rawInputHash = trim($resultData['ocr_hash']); // Ambil freshHash hasil bacaan pdfplumber
-            // 💡 🆕 TANGKAP ID ASLI YANG DIHANTAR OLEH PYTHON ENGINE
+            
+            // Extract OCR generated hash from Python engine
+            $rawInputHash = trim($resultData['ocr_hash']); 
+            
+            // Capture extracted document ID from Python engine if available
             if (isset($resultData['extracted_id']) && $resultData['extracted_id'] !== 'UNKNOWN') {
                 $_POST['extracted_hash'] = trim($resultData['extracted_id']); 
             }
@@ -93,28 +96,30 @@ try {
         exit();
     }
 
-    // Memastikan hash hasil dari Python Flask tidak kosong
+    // Ensure OCR hash is not empty
     if (empty($rawInputHash)) {
         header("Location: verify_document.php?result=not_found&message=Cryptographic+Hash+Generation+Failed");
         exit;
     }
 
     // =========================================================================
-    // 🛡️ LOGIK UTAMA TANGKAP PENOLAKAN KATA KUNCI DARI PYTHON
+    // 🛡️ HANDLE INVALID DOCUMENT TYPE FROM PYTHON ENGINE
     // =========================================================================
     if ($rawInputHash === "INVALID_DOCUMENT_TYPE") {
         $verifierID = $_SESSION['userID'];
+        
+        // Log invalid document attemot
         $log_sql = "INSERT INTO verificationlog (verifierID, documentID, verificationStatus, verificationDate) VALUES (?, 0, 'Not Found', NOW())";
         $log_stmt = $conn->prepare($log_sql);
         $log_stmt->bind_param("i", $verifierID);
         $log_stmt->execute();
 
-        // Paksa buka modal abu-abu "No Record Found" serta-merta!
+        // "No Record Found" response
         header("Location: verify_document.php?result=not_found&hash=UNREGISTERED_DOCUMENT");
         exit;
     }
 
-    // PEMBERSIHAN HASH SECARA KETAT
+    // Strict cleanup of hash input
     $qrHash = preg_replace('/^0x/i', '', trim($rawInputHash));
     if (preg_match('/([a-fA-F0-9]{64})/', $qrHash, $matches)) {
         $qrHash = $matches[1];
@@ -122,7 +127,7 @@ try {
     $qrHash = strtolower($qrHash);
 
     // =========================================================================
-    // SEMAKAN PANGKALAN DATA (GROUND TRUTH)
+    // DATABASE VERIFICATION (SOURCE OF TRUTH)
     // =========================================================================
     $sql = "SELECT combined.* FROM (
                 SELECT 'MC' as type, LOWER(TRIM(REPLACE(documentHash, '0x', ''))) as cleanDocHash, LOWER(REPLACE(transactionHash, '0x', '')) as cleanTxHash, documentHash, status, doctorID, mcID as docID, m.createdAt FROM mc m
@@ -136,24 +141,22 @@ try {
     $dbResult = $stmt->get_result()->fetch_assoc();
 
     // =========================================================================
-    // 🚨 LOGIK KHUSUS UNTUK MENANGKAP KES TAMPERED (DATA MISMATCH)
+    // 🚨 TAMPER DETECTION LOGIC (DATA MISMATCH HANDLING)
     // =========================================================================
     if (!$dbResult) {
         $verifierID = $_SESSION['userID'];
         $detectedDocID = 0; 
         
         $inputID = "";
-        // 💡 Tangkap ID jika dihantar melalui manual entry backup
+        // Extract ID from manual input if available
         if (isset($_POST['doc_id']) && !empty($_POST['doc_id'])) {
             $inputID = strtoupper(trim($_POST['doc_id']));
         } 
-        // 💡 Cadangan Forensik: Jika fail ditampered tetapi mengandungi hash yang pernah diolah,
-        // kita cuba buat semakan silang string (jika parameter text dihantar dari frontend)
         elseif (isset($_POST['extracted_hash']) && !empty($_POST['extracted_hash']) && $_POST['extracted_hash'] !== 'FORCE_DECODE_VIA_PYTHON') {
             $inputID = strtoupper(trim($_POST['extracted_hash']));
         }
 
-        // Ekstrak nombor ID integer daripada rentetan teks (Contoh: MCUTHM000004 -> 4)
+        // Extract numeric ID from document string
         if (!empty($inputID)) {
             if (preg_match('/(?:MCUTHM|TSUTHM)0*([1-9][0-9]*|0)/i', $inputID, $matches)) {
                 $numericID = (int)$matches[1];
@@ -161,7 +164,7 @@ try {
                 $numericID = intval(preg_replace('/[^0-9]/', '', $inputID));
             }
             
-            // Semak sama ada ID angka ini betul-betul wujud dalam pangkalan data induk
+            // Validate if ID exists in database
             $check_sql = "SELECT mcID as realID FROM mc WHERE mcID = ? 
                           UNION ALL 
                           SELECT slipID as realID FROM timeslip WHERE slipID = ?";
@@ -176,13 +179,13 @@ try {
             }
         }
 
-        // Simpan maklumat ke log audit verifikasi (documentID kekal INT, qrHash disimpan ke lajur extractedHash)
+        // Log tampered verification attempt
         $log_sql = "INSERT INTO verificationlog (verifierID, documentID, verificationStatus, extractedHash, verificationDate) VALUES (?, ?, 'Tampered', ?, NOW())";
         $log_stmt = $conn->prepare($log_sql);
         $log_stmt->bind_param("iis", $verifierID, $detectedDocID, $qrHash);
         $log_stmt->execute();
 
-        // ─── 🆕 INTERVENTI AUDIT LOG GLOBAL (KES TAMPERED!) ───
+        // ─── 🆕 Audit log for tampered document detection (TAMPERED!) ───
         $auditAction = "VERIFY_TAMPERED";
         $formattedDocID = ($docType === 'MC') ? "MCUTHM" . str_pad($detectedDocID, 6, "0", STR_PAD_LEFT) : "TSUTHM" . str_pad($detectedDocID, 6, "0", STR_PAD_LEFT);
         if ($detectedDocID === 0) { $formattedDocID = "UNKNOWN_ID"; }
@@ -194,12 +197,12 @@ try {
         $stmt_audit->bind_param("iss", $verifierID, $auditAction, $auditResource);
         $stmt_audit->execute();
 
-        // Heret nilai ID rujukan tulen ke URL parameter supaya Overlay boleh memaparkan maklumat asal!
+        // Redirect with tampered flag for UI overlay display
         header("Location: verify_document.php?result=success&tampered=true&hash=" . urlencode($qrHash) . "&reference_id=" . urlencode($detectedDocID));
         exit;
     }
     
-    // Jalur kecemasan tambahan sekiranya ada herotan string (Double-Protection)
+    // Additional safeguard check for corrupted hash mismatch
     $realDocHash = strtolower(preg_replace('/^0x/i', '', trim($dbResult['documentHash'])));
     if ($qrHash !== $realDocHash) {
         header("Location: verify_document.php?result=success&tampered=true&hash=" . $dbResult['documentHash']);
@@ -207,7 +210,7 @@ try {
     }
 
     // =========================================================================
-    // ⛓️ SEMAKAN RANTAIAN BLOK SEPOLIA LEDGER (LIVE DEPLOYMENT ON RENDER)
+    // ⛓️ BLOCKCHAIN VERIFICATION CHECK (SEPOLIA LIVE LEDGER)
     // =========================================================================
     $blockchainVerified = false; 
     $blockchainTimestamp = 0; 
@@ -227,7 +230,7 @@ try {
     }
 
     // =========================================================================
-    // 🟢 JALUR UTAMA UNTUK MENYALAKAN MODAL HIJAU (AUTHENTIC)
+    // SUCCESS PATH: AUTHENTIC DOCUMENT VERIFICATION
     // =========================================================================
     $verifierID = $_SESSION['userID']; 
     $cleanDocID = $dbResult['docID'];
@@ -247,7 +250,6 @@ try {
     $stmt_audit->bind_param("iss", $verifierID, $auditAction, $auditResource);
     $stmt_audit->execute();
     
-    // 💡 PENAPIS FORENSIK MUKTAMAD:
     $finalTimestamp = time();
     if ($blockchainTimestamp > 1704038400) {
         $finalTimestamp = $blockchainTimestamp;

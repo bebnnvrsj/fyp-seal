@@ -1,12 +1,18 @@
 <?php
 session_start();
-// Pastikan hanya admin boleh akses
+// Only admin users can access this page
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../login/login.php");
     exit();
 }
 require '../db_connect.php'; 
 
+// =========================================================================
+// DATA RETRIEVAL: FETCH ALL MEDICAL CERTIFICATES AND TIME SLIPS
+// Combines records from the MC and Time Slip tables using UNION,
+// retrieves doctor information, and sorts all documents by creation
+// date in descending order for administrative viewing.
+// =========================================================================
 $sql = "SELECT m.mcID AS id, m.patientName, m.patientNRIC, m.matric_staff_no, 'MC' AS doc_type, m.status, m.documentHash, m.transactionHash, m.createdAt, dp.name AS doctor_name 
         FROM mc m
         INNER JOIN users u ON m.doctorID = u.userID
@@ -20,7 +26,7 @@ $sql = "SELECT m.mcID AS id, m.patientName, m.patientNRIC, m.matric_staff_no, 'M
 
 $result = $conn->query($sql);
 
-// Mengira jumlah keseluruhan dokumen yang dikeluarkan
+// count total documents for display in the dashboard
 $total_docs = $result ? $result->num_rows : 0;
 ?>
 
@@ -373,7 +379,7 @@ $total_docs = $result ? $result->num_rows : 0;
         }
     }
 
-    // ─── 🟢 FORCED LIVE DATA-FETCH INJECTOR ENGINE (100% KALIS NaN & SECURE CORS) ───
+    // 🟢 RETRIEVAL OF TRANSACTION DETAILS AND TIMESTAMPS FROM BLOCKCHAIN ───
     async function openForensicOverlay(rowElement) {
         const docID = rowElement.getAttribute('data-id');
         const patientName = rowElement.getAttribute('data-name');
@@ -384,7 +390,7 @@ $total_docs = $result ? $result->num_rows : 0;
         const docHash = rowElement.getAttribute('data-dochash');
         const txHash = rowElement.getAttribute('data-txhash');
 
-        // Suntik nilai local MySQL segera ke dalam modal UI
+        // Display local database records in the forensic analysis modal.
         document.getElementById('f-docID').innerText = "#" + docID;
         document.getElementById('f-patientName').innerText = patientName;
         document.getElementById('f-nric').innerText = nric;
@@ -393,13 +399,12 @@ $total_docs = $result ? $result->num_rows : 0;
         document.getElementById('f-doctor').innerText = "Dr. " + doctor;
         document.getElementById('f-txHash').innerText = txHash;
 
-        // Konfigurasi pautan Etherscan Sepolia tulen mengikut baris dinamik
+        // Generate Etherscan link for the transaction hash and set it in the modal.
         const etherscanWebUrl = `https://sepolia.etherscan.io/tx/${txHash}`;
         const linkBtn = document.getElementById('etherscanLink');
         if (linkBtn) linkBtn.setAttribute('href', etherscanWebUrl);
 
-        // Set status elemen modal kepada mod Loading / Menunggu Respon
-        document.getElementById('f-bcTimestamp').innerText = "Connecting to Sepolia Ledger...";
+        // Set the forensic modal to a loading state while awaiting blockchain verification results.        document.getElementById('f-bcTimestamp').innerText = "Connecting to Sepolia Ledger...";
         document.getElementById('f-blockNumber').innerText = "Querying block height...";
         document.getElementById('f-confirmations').innerText = "Calculating network depth...";
         document.getElementById('f-gasUsed').innerText = "Extracting execution gas...";
@@ -426,7 +431,7 @@ $total_docs = $result ? $result->num_rows : 0;
             
             const data = await response.json();
 
-            // TAPISAN UTAMA: Pastikan data.result wujud dan mengandungi nilai heksadesimal sah
+            // Make sure data.result exists and valid
             if (data && data.result && typeof data.result === 'object' && data.result.blockNumber !== null && data.result.blockNumber !== undefined) {
                 const receipt = data.result;
                 
@@ -435,13 +440,13 @@ $total_docs = $result ? $result->num_rows : 0;
                 const fromAddr = receipt.from;
                 const toAddr = receipt.to;
 
-                // Jika penukaran menghasilkan NaN akibat gangguan API, paksa lompat ke fungsi sandaran dinamik
+                // Use fallback verification when invalid blockchain values are returned.
                 if (isNaN(blockNum) || isNaN(gasUsed)) {
                     useSecureDemoFallback(txHash, dbTime);
                     return;
                 }
 
-                // Tarik maklumat blockHeight terkini dari rangkaian
+                // Get blockheight from Sepolia
                 const blockHeightResponse = await fetch(`https://api-sepolia.etherscan.io/api?module=proxy&action=eth_blockNumber&apikey=9K6Y8XX79U1VI6HZV84XW6X8B4KK98MZ7R`, { mode: 'cors' });
                 const blockHeightData = await blockHeightResponse.json();
                 let liveConfirmations = "Verified (Active)";
@@ -462,30 +467,28 @@ $total_docs = $result ? $result->num_rows : 0;
                 document.getElementById('f-bcTimestamp').innerText = dbTime + " (Live Synced)";
                 document.getElementById('f-syncStatus').innerHTML = "<span style='color:var(--success-green); font-weight:bold;'>✓ Success</span>";
             } else {
-                // Jika panggilan API disekat atau rate-limited, jalankan fail-safe dinamik
+                // If the API request is blocked or rate-limited, execute the dynamic fail-safe fallback mechanism.
                 useSecureDemoFallback(txHash, dbTime);
             }
         } catch (err) {
-            // Jika ralat CORS tegar berlaku, gunakan perlindungan mod sandaran dinamik
+            // If a persistent CORS error occurs, activate the dynamic fallback protection mode.
             useSecureDemoFallback(txHash, dbTime);
         }
     }
 
-    // Enjin Penyelamat Berkaliber - DIJAMIN NGAM & REALISTIK UNTUK SEMUA TRANSAKSI SEAWAL MEI 2026
+    // Generate fallback blockchain verification data when live network quieries are unavailable.
     function useSecureDemoFallback(txHash, dbTime) {
-        // 1. Ekstrak semua nilai angka daripada Transaction Hash unik dokumen ini
+        // Derive determinsitic numeric seeds from the transaction hash for fallback data generation.
         const cryptoSeed = txHash.replace(/[^0-9]/g, '');
         const baseSeed = parseInt(cryptoSeed.substring(0, 5)) || 56789;
         const gasSeed = parseInt(cryptoSeed.substring(2, 6)) || 1234;
         
-        // 2. KIRA NOMBOR BLOK TEPAT: Menyesuaikan kedudukan tingkat blok mengikut sela masa kewujudan
-        // Julat ini dilaraskan secara automatik antara 10,920,000 hingga 10,975,000 mengikut txHash dokumen
+        // Calculate a deterministic block number range based on the transaction hash seed for fallback simulation.
         const baseBlock = 10922000; 
         const realBlockNumber = baseBlock + (baseSeed % 53000); 
         
-        // 3. KIRA CONFIRMATIONS LIVE: Mengira jarak masa sebenar dari tarikh dbTime sehingga SEKARANG
-        // Ini memastikan dokumen bertarikh 26 Mei akan mendapat sekitar 52,000+ confirmations secara automatik!
-        const docTimestamp = Date.parse(dbTime.replace('|', '')) / 1000; // Bersihkan simbol palang jika ada
+        // Calculate real-time confirmation estimate by comparing document timestamp with current blockchain time.
+        const docTimestamp = Date.parse(dbTime.replace('|', '')) / 1000; 
         const currentTimestamp = Math.floor(Date.now() / 1000);
         
         // Jika Date.parse gagal membaca format string, guna fail-safe dinamik berasaskan lejar
@@ -498,20 +501,20 @@ $total_docs = $result ? $result->num_rows : 0;
             }
         }
         
-        // 4. KIRA GAS USED: Dilaraskan sekitar 90,790 mengikut profil resit transaksi tulen kau
+        // Count gas used
         const baseGas = 90790;
         const realGasUsed = baseGas + (gasSeed % 950); // Lari tipis sekitar 90,790 - 91,740 (Sangat logik)
         
-        // 5. KIRA GAS PRICE: Mengikut purata lingkungan 1.40 Gwei hingga 1.80 Gwei (Sepolia Mei 2026)
+        // Count GAS PRICE
         const dynamicGasPrice = (1.40 + ((baseSeed % 40) / 100)).toFixed(2);
 
-        // Suntik data hibrid dinamik yang telah disinkronkan ke dalam UI Modal Overlay
+        // Inject synchronized hybrid blockchain verification data into the modal overlay UI.
         document.getElementById('f-blockNumber').innerText = realBlockNumber; 
         document.getElementById('f-confirmations').innerText = dynamicConfirmations.toLocaleString() + " blocks"; 
         document.getElementById('f-gasUsed').innerText = realGasUsed.toLocaleString(); 
         document.getElementById('f-gasPrice').innerText = dynamicGasPrice + " Gwei";
         
-        // Alamat dompet Node Doktor dan Smart Contract SEAL yang SEBENAR
+        // Load verified doctor node and SEAL smart contract address into the UI SEAL
         document.getElementById('f-fromAddress').innerText = "0xc04AeaAB3A0E79FC9caA2b02a31c4DC77cb48EB5";
         document.getElementById('f-toAddress').innerText = "0x3cff8ceda85f5b7f7ba6a8cf2cbff4de966a0827";
         
@@ -519,6 +522,7 @@ $total_docs = $result ? $result->num_rows : 0;
         document.getElementById('f-syncStatus').innerHTML = "<span style='color:var(--success-green); font-weight:bold;'>✓ Success</span>";
     }
 
+    // Display failure indicators when a document cannot be validated against the blockchain ledger.
     function setForensicFailedStates() {
         document.getElementById('f-bcTimestamp').innerText = "NOT ON LEDGER";
         document.getElementById('f-blockNumber').innerText = "N/A";
@@ -532,11 +536,12 @@ $total_docs = $result ? $result->num_rows : 0;
         if (linkBtn) linkBtn.setAttribute('href', '#');
     }
 
+    // Close the forensic analysis overlay and return to the document list.
     function closeForensicOverlay() {
         document.getElementById('forensicOverlay').style.display = 'none';
     }
 
-    // KESELAMATAN JADUAL UTAMA: Menunjukkan status ringkas tanpa membebankan API utama
+    // Verify the existence of a valid transaction hash before displaying ledger status
     function initLocalTableStatus() {
         const statusElements = document.querySelectorAll('[id^="status-"]');
         for (let element of statusElements) {
@@ -556,6 +561,7 @@ $total_docs = $result ? $result->num_rows : 0;
         }
     }
 
+    //Initialize document verification status when the page finishes loading
     document.addEventListener("DOMContentLoaded", function() {
         initLocalTableStatus(); 
     });

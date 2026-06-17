@@ -1,4 +1,5 @@
 <?php
+date_default_timezone_set('Asia/Kuala_Lumpur');
 session_start();
 require '../db_connect.php';
 
@@ -6,10 +7,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $password = $_POST['password'];
     $confirm_password = $_POST['confirm_password'];
     
-    // Ambil token dari hidden input form untuk pastikan pautan cross-device kekal sah jika ralat berlaku
+    //Retrieve token from hidden form input to ensure the reset link remains valid across devices in case of errors
     $token = isset($_POST['token']) ? mysqli_real_escape_string($conn, $_POST['token']) : '';
 
-    // Pastikan session emel wujud (telah diset oleh pengesahan token di reset_pw.php)
+    // Ensure email session exists (set during token validation in reset_pw.php)
     if (!isset($_SESSION['reset_email'])) {
         $_SESSION['error'] = "Session expired. Please restart the password recovery process.";
         header("Location: forgot_pw.php");
@@ -38,12 +39,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $hashed_password = password_hash($password, PASSWORD_DEFAULT);
     
     // Set reset_token dan token_expires kepada NULL supaya token tidak boleh diguna semula (One-time use security)
-    $sql = "UPDATE users SET password = ?, reset_token = NULL, token_expires = NULL WHERE username = ?"; 
+    $sql = "UPDATE users SET password = ?, reset_token = NULL, token_expires = NULL WHERE username = ? AND reset_token = ?"; 
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ss", $hashed_password, $email);
+    $stmt->bind_param("sss", $hashed_password, $email, $token);
 
     if ($stmt->execute()) {
-        unset($_SESSION['reset_email']); // Bersihkan session pelayan selepas berjaya
+        unset($_SESSION['reset_email']); // Clear server session after successful update
         header("Location: login.php?status=reset_success");
     } else {
         $_SESSION['error'] = "Failed to update password.";

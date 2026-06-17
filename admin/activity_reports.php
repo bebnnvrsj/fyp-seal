@@ -1,4 +1,5 @@
 <?php
+//Restrict access to admin users only
 session_start();
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../login/login.php");

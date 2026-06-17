@@ -1,6 +1,11 @@
 <?php
 session_start();
-require '../db_connect.php'; 
+// Only admin users can access this page
+if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+    header("Location: ../login/login.php");
+    exit();
+}
+require '../db_connect.php';  
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $full_name = strtoupper(mysqli_real_escape_string($conn, $_POST['full_name']));
@@ -8,7 +13,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $matric_staff_no = mysqli_real_escape_string($conn, $_POST['matric_staff_no']);
     $email = mysqli_real_escape_string($conn, $_POST['email']);
 
-    // Semak jika IC atau No Matrik sudah wujud
+    // Check if IC or Matric Number already exists
     $check = "SELECT patientID FROM patients WHERE ic_passport = ? OR matric_staff_no = ?";
     $stmt_check = $conn->prepare($check);
     $stmt_check->bind_param("ss", $ic_passport, $matric_staff_no);

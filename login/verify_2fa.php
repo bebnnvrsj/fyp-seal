@@ -3,7 +3,7 @@ session_start();
 require '../db_connect.php';
 require_once '../GoogleAuthenticator.php';
 
-// Pastikan pengguna datang dari proses login_process.php
+// Make sure the process is from login_process.php
 if (!isset($_SESSION['2fa_pending'])) {
     header("Location: login.php");
     exit();
@@ -14,28 +14,28 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $otp_code = $_POST['otp_code'];
     $userID = $_SESSION['2fa_pending']['userID'];
 
-    // Ambil secret key dari database berdasarkan userID dalam session pending
+    // Retrieve secret key from database using the userID stored in the pending session
     $stmt = $conn->prepare("SELECT google_auth_secret FROM users WHERE userID = ?");
     $stmt->bind_param("i", $userID);
     $stmt->execute();
     $res = $stmt->get_result()->fetch_assoc();
 
-    // Pastikan secret tidak null untuk mengelakkan ralat PHP
+    // Ensure the secret value is not null to prevent PHP runtime errors
     $secret = $res['google_auth_secret'] ?? ''; 
     $master_code = '030604'; // Kod pintas manual
     $checkResult = false;
 
-    // Logik Pengesahan
+    // Authentication logic
     if ($otp_code === $master_code) {
         $checkResult = true;
     } elseif (!empty($secret)) {
         $ga = new GoogleAuthenticator();
-        // Guna toleransi masa 2 (±60 saat)
+        // Verify OTP code using a 2-step window tolerance (±60 seconds) to account for time drift
         $checkResult = $ga->verifyCode($secret, $otp_code, 2);
     }
 
     if ($checkResult) {
-        // Jika berjaya, pindahkan semua data dari pending ke session utama
+        // On successful verification, transfer all pending data into the main session
         $_SESSION['userID'] = $_SESSION['2fa_pending']['userID'];
         $_SESSION['role'] = $_SESSION['2fa_pending']['role'];
         

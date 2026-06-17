@@ -7,25 +7,28 @@ if (!isset($_SESSION['userID'])) {
 }
 require '../db_connect.php';
 
+//Get document hash and type from GET parameters
 $hash = isset($_GET['hash']) ? mysqli_real_escape_string($conn, $_GET['hash']) : '';
 $type = isset($_GET['type']) ? mysqli_real_escape_string($conn, $_GET['type']) : '';
 
+//Validate required parameters
 if (empty($hash) || empty($type)) {
     die("Error: Document hash or type is missing.");
 }
 
+//Get currently logged-in user ID from session
 $current_userID = $_SESSION['userID'];
 
+//Load document data based on type
 if ($type === 'mc') {
-    // FIXED SQL QUERY: Modified JOIN context to fetch name and mmc_number directly from 
-    // doctor_profiles instead of users due to database normalization updates.
+    // Retrieve MC record and join doctor profile data (name and MMC number)
     $sql = "SELECT m.*, m.mcID as docID, dp.name as doctor_name, dp.mmc_number 
             FROM mc m 
             JOIN users u ON m.doctorID = u.userID 
             LEFT JOIN doctor_profiles dp ON u.userID = dp.doctorID
             WHERE m.documentHash = ? AND m.doctorID = ?";
 } else {
-    // FIXED SQL QUERY: Aligned Time-Slip profile query pathway with doctor_profiles table mapping structures
+    // Retrieve Time Slip record and join doctor profile data (name and MMC number)
     $sql = "SELECT t.*, t.slipID as docID, dp.name as doctor_name, dp.mmc_number 
             FROM timeslip t 
             JOIN users u ON t.doctorID = u.userID 
@@ -38,11 +41,12 @@ $stmt->bind_param("si", $hash, $current_userID);
 $stmt->execute();
 $doc = $stmt->get_result()->fetch_assoc();
 
+// Stop execution if document is not found
 if (!$doc) { 
     die("Document not found."); 
 }
 
-// 2. Logik Paparan Status (DIKEMAS KINI: Patuh Arahan SV Tanpa EXPIRED)
+// STATUS DISPLAYED
 $db_status = strtoupper(trim($doc['status'])); 
 
 if ($db_status === 'REVOKED') {
@@ -53,7 +57,7 @@ if ($db_status === 'REVOKED') {
     $statusClass = "status-active";
 }
 
-// 3. 🆕 LOGIK PENGIRAAN TEMPOH CUTI (LEAVE PERIOD) SECARA DINAMIK
+// DYNAMIC LEAVE DURATION CALCULATION (FOR MC ONLY)
 if ($type === 'mc') {
     $start = new DateTime($doc['startDate']);
     $end = new DateTime($doc['endDate']);
@@ -64,7 +68,7 @@ if ($type === 'mc') {
     $durationText = "Single Day Visit";
 }
 
-// 4. Jana QR URL
+// Generate QR verification URL
 $serverIP = "seal-uthm.site"; // Alamat IP hos pelayan Laragon anda
 $verificationURL = "http://" . $serverIP . "/login/login.php";
 $qrCodeURL = "https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=" . urlencode($verificationURL);

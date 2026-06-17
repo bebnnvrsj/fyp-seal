@@ -1,15 +1,13 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
-// 1. Pastikan pengguna sudah melepasi 2FA dan merupakan Admin
-if (!isset($_SESSION['userID']) || $_SESSION['role'] !== 'admin') {
-    header("Location: ../login/login.php"); // Pastikan path ini betul ke folder login
+session_start();
+// Only admin users can access this page
+if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+    header("Location: ../login/login.php");
     exit();
 }
+require '../db_connect.php'; 
 
-// 2. Ambil maklumat untuk paparan profil
+// Fetch admin details for personalized greeting
 $admin_name = isset($_SESSION['name']) ? $_SESSION['name'] : 'Administrator';
 $staff_number = isset($_SESSION['staff_number']) ? $_SESSION['staff_number'] : 'N/A';
 ?>

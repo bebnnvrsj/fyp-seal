@@ -1,5 +1,6 @@
 <?php
 session_start();
+//Only doctor can access this page
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'doctor') {
     header("Location: ../login.php");
     exit();

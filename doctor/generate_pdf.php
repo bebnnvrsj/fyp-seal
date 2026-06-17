@@ -1,19 +1,19 @@
 <?php
-require 'vendor/autoload.php'; // Pastikan path vendor betul (dalam folder doctor)
-require '../db_connect.php'; //
+require 'vendor/autoload.php'; 
+require '../db_connect.php'; 
 
 use Dompdf\Dompdf; //
 use Dompdf\Options; //
 
-// 1. Terima parameter HASH dan TYPE
+// Receive HASH and TYPE parameters from request for processing 
 $hash = isset($_GET['hash']) ? mysqli_real_escape_string($conn, $_GET['hash']) : ''; //
 $type = isset($_GET['type']) ? mysqli_real_escape_string($conn, $_GET['type']) : ''; //
 
 if (empty($hash) || empty($type)) {
-    die("Akses Terhalang: Maklumat dokumen tidak lengkap."); //
+    die("Access Denied: Required document parameters are missing."); //
 }
 
-// 2. Ambil data dari database menggunakan HASH
+// Query database to retrieve record based on provided document hash
 $sql = ($type === 'mc') 
     ? "SELECT m.*, dp.name as doctor_name, dp.mmc_number 
        FROM mc m 
@@ -32,10 +32,8 @@ $doc = $stmt->get_result()->fetch_assoc(); //
 
 if (!$doc) { die("Document not found."); } //
 
-// === PEMBETULAN FORENSIK 1: Ambil masa genTime (Jam:Minit:Saat) yang tepat dari database ===
 $genTime = date("H:i:s", strtotime($doc['createdAt'])); //
 
-// === PEMBETULAN FORENSIK 2: Bina Semula Logik Pengarian Hari Khas MC Sepadan create_mc_process.php ===
 $dayTextDisplay = "";
 if ($type === 'mc') {
     $date1 = new DateTime($doc['startDate']); //
@@ -54,22 +52,21 @@ if ($type === 'mc') {
     $dayTextDisplay = isset($numberToWords[$totalDaysCount]) ? $numberToWords[$totalDaysCount] : $totalDaysCount; //
 }
 
-// 3. Jana Data QR Code (Gunakan Pautan Standard cPanel Sesuai Fail Baharu)
+// QR Code generation
 $serverIP = "seal-uthm.site"; //
 $verificationURL = "http://" . $serverIP . "/login/login.php"; //
 $qrApiUrl = "https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=" . urlencode($verificationURL); //
 
-// Teknik Base64 untuk masukkan imej QR ke dalam Dompdf secara stabil
+// Use Base64 encoding to embed QR code into Dompdf for stable PDF rendering 
 $qrData = file_get_contents($qrApiUrl); //
 $qrBase64 = 'data:image/png;base64,' . base64_encode($qrData); //
 
-// 4. Konfigurasi Dompdf
+// Dompdf configuration
 $options = new Options(); //
 $options->set('isHtml5ParserEnabled', true); //
 $options->set('isRemoteEnabled', true);  //
 $dompdf = new Dompdf($options); //
 
-// 5. ─── 🟢 INTEGRASI REKA BENTUK TOTAL: KEMBARA 100% SEPADAN EMEL SIJIL ───
 $html = "
 <html>
 <head>
@@ -100,7 +97,7 @@ $html = "
         <div class='status-stamp'>" . (strtoupper(trim($doc['status'])) === 'REVOKED' ? 'REVOKED' : 'DOCTOR COPY') . "</div>"; //
 
 if ($type === 'mc') {
-    // ─── SENI REKA TEMPLATE REAL MEDICAL CERTIFICATE ───
+    // mc design
     $html .= "
         <div class='header'>
             <h1>Medical Certificate</h1>
@@ -147,7 +144,7 @@ if ($type === 'mc') {
             </tr>
         </table>";
 } else {
-    // ─── SENI REKA TEMPLATE REAL TIME-SLIP ───
+    // timeslip design
     $html .= "
         <div class='header'>
             <h1 style='color: #183055;'>Time-Slip</h1>
@@ -191,7 +188,6 @@ if ($type === 'mc') {
         </table>";
 }
 
-// ─── SEKSYEN BAWAH (DIAGNOSIS & STRUKTUR METADATA AUDIT) SYNCED TOTAL ───
 $html .= "
         <div style='margin-bottom: 20px;'>
             <div class='label'>Diagnosis / Purpose</div>
@@ -243,7 +239,7 @@ $html .= "
 </body>
 </html>";
 
-// 6. Jana dan Download PDF
+// PDF generation and streaming to browser for download
 $dompdf->loadHtml($html); //
 $dompdf->setPaper('A4', 'portrait'); //
 $dompdf->render(); //

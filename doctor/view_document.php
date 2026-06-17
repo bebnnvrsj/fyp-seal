@@ -7,7 +7,7 @@ if (!isset($_SESSION['role'])) {
 }
 require '../db_connect.php';
 
-// 1. Ambil ID dan Type dari URL
+// Get ID and URL from type
 if (!isset($_GET['id']) || !isset($_GET['type'])) {
     header("Location: view_history.php");
     exit();
@@ -16,21 +16,25 @@ if (!isset($_GET['id']) || !isset($_GET['type'])) {
 $id = intval($_GET['id']);
 $type = strtolower(mysqli_real_escape_string($conn, $_GET['type']));
 
-// 2. Query mengikut jenis (MC atau Time-Slip)
+// Determine document type and prepare corresponding query
 if ($type === 'mc') {
     $sql = "SELECT m.*, u.name as doctor_name 
             FROM mc m 
             JOIN users u ON m.doctorID = u.userID 
             WHERE m.mcID = ?";
+    //Set page title for MC details view
     $displayTitle = "Medical Certificate Details";
 } else {
+    //Fetch time slip record and associated doctor name
     $sql = "SELECT t.*, u.name as doctor_name 
             FROM timeslip t 
             JOIN users u ON t.doctorID = u.userID 
             WHERE t.slipID = ?";
+    //Set page title for time slip details view
     $displayTitle = "Time-Slip Details";
 }
 
+//Prepare SQL dtatement to prevent SQLi
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("i", $id);
 $stmt->execute();

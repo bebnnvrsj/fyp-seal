@@ -106,7 +106,7 @@
         .footer-links a { color: var(--primary-blue); text-decoration: none; font-weight: bold; }
         .footer-links a:hover { text-decoration: underline; }
 
-        /* --- RESPONSIVE BREAKPOINT (Aligned perfectly with login.php) --- */
+        /* --- RESPONSIVE BREAKPOINT */
         @media (max-width: 1050px) {
             .login-wrapper { width: 90%; height: auto; }
             .brand-side { display: none; } /* Hides branding block completely on phones/tablets */

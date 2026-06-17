@@ -1,14 +1,15 @@
 <?php
 session_start();
-// Security guard: restrict directly running queries to admin roles only
+// Only admin users can access this page
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
-    exit("Unauthorized");
+    header("Location: ../login/login.php");
+    exit();
 }
-require '../db_connect.php';
+require '../db_connect.php'; 
 
 $actionFilter = isset($_GET['action']) ? mysqli_real_escape_string($conn, $_GET['action']) : '';
 
-// 3NF Relational Mapping Query Layout to resolve names correctly from role subtables
+// Retrieve audit logs with user identity resolution across admin, doctor, and verifier profiles for full system traceability.
 $sql = "SELECT 
             a.logID, 
             a.action, 

@@ -1,15 +1,16 @@
 <?php
 session_start();
-// 1. Kawalan Akses: Hanya Admin dibenarkan[cite: 5]
+// Only admin users can access this page
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
-    header("Location: ../login.php");
+    header("Location: ../login/login.php");
     exit();
 }
-require '../db_connect.php';
+require '../db_connect.php'; 
 
-// 2. Ambil maklumat admin untuk profil (pilihan)
+// Take admin name from session for personalized greeting
 $admin_name = isset($_SESSION['name']) ? $_SESSION['name'] : 'Administrator';
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -77,7 +78,6 @@ $admin_name = isset($_SESSION['name']) ? $_SESSION['name'] : 'Administrator';
 
     <div class="container">
         <div class="mc-form-card">
-            <!-- Form mengikut struktur create_mc.php[cite: 6] -->
             <form action="register_patient_process.php" method="POST" id="regForm">
                 <div class="form-section-title"><i class="fa-solid fa-user-plus"></i> Patient Registration</div>
                 
@@ -114,7 +114,7 @@ $admin_name = isset($_SESSION['name']) ? $_SESSION['name'] : 'Administrator';
 </div>
 
 <script>
-// Fungsi sidebar[cite: 6]
+// Sidebar
 function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
     const mainWrapper = document.getElementById('mainWrapper');
@@ -122,7 +122,7 @@ function toggleSidebar() {
     mainWrapper.classList.toggle('full-width');
 }
 
-// SweetAlert untuk maklum balas URL[cite: 5]
+// SweetAlert for registration feedback
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get('status') === 'success') {
     Swal.fire({ icon: 'success', title: 'Registered!', text: 'Patient data is now available for doctors.', confirmButtonColor: '#2b7a9e' });
@@ -132,7 +132,7 @@ if (urlParams.get('status') === 'success') {
     Swal.fire({ icon: 'error', title: 'Registration Failed', text: 'Database error occurred.', confirmButtonColor: '#b91c1c' });
 }
 
-// Loading effect semasa menghantar borang[cite: 6]
+// Loading effect when submitting the form
 document.getElementById('regForm').onsubmit = function() {
     Swal.fire({
         title: 'Registering Patient...',

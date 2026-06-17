@@ -1,4 +1,5 @@
 <?php
+date_default_timezone_set('Asia/Kuala_Lumpur');
 session_start();
 require '../db_connect.php';
 
@@ -8,13 +9,13 @@ unset($_SESSION['error'], $_SESSION['success']);
 
 $token = $_GET['token'] ?? '';
 
-// Jika tiada token di URL dan tiada backup session emel, halang akses terus
+// Prevent access if both URL token and backup email session are missing for security enforcement
 if (empty($token) && !isset($_SESSION['reset_email'])) {
     header("Location: forgot_pw.php");
     exit;
 }
 
-// Jika ada token di URL, buat pengesahan database (Cross-Device Handshake)
+// If a token exists in the URL, validate it against the database (cross-device authentication check)
 if (!empty($token)) {
     $sql = "SELECT username FROM users WHERE reset_token = ? AND token_expires > NOW()";
     $stmt = $conn->prepare($sql);
@@ -24,12 +25,11 @@ if (!empty($token)) {
 
     if ($result->num_rows > 0) {
         $user = $result->fetch_assoc();
-        $_SESSION['reset_email'] = $user['username']; // Simpan emel secara selamat dalam session pelayan
+        $_SESSION['reset_email'] = $user['username']; 
         
-        // ✨ SOLUSI MUTLAK: Kosongkan sisa ralat sesi lepas kerana token ini terbukti SAH!
         $error = ''; 
     } else {
-        // Token tidak sah atau tamat tempoh 30 minit
+        // Invalid token or has expired 
         $_SESSION['error'] = "The password reset link is invalid or has expired. Please request a new one.";
         header("Location: forgot_pw.php?status=expired");
         exit;

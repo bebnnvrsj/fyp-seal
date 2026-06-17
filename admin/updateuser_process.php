@@ -1,17 +1,14 @@
 <?php
 session_start();
-
-// 1. SECURITY CHECK
 // Only allow logged-in Admins to access this processing file
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../login/login.php");
     exit();
 }
-
 require '../db_connect.php';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // 2. COLLECT AND SANITIZE INPUTS
+    // INPUT SANITIZATION
     // Prevents SQL Injection by escaping strings
     $userID         = mysqli_real_escape_string($conn, $_POST['userID']);
     $name           = mysqli_real_escape_string($conn, $_POST['name']);
@@ -23,7 +20,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // MMC Number is optional (NULL if empty)
     $mmc_input = mysqli_real_escape_string($conn, $_POST['mmc_number']);
     $mmc_number = (!empty($mmc_input)) ? substr($mmc_input, 0, 100) : NULL;
-    // 3. DUPLICATE CHECK
     // Ensure the new username or staff number isn't already used by another account
     $check_sql = "SELECT userID FROM users WHERE (username = ? OR staff_number = ?) AND userID != ?";
     $stmt = $conn->prepare($check_sql);
@@ -37,7 +33,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit();
     }
 
-    // 4. PREPARE THE UPDATE STATEMENT
+    // UPDATE STATEMENT
     $update_sql = "UPDATE users SET 
                     username = ?, 
                     role = ?, 

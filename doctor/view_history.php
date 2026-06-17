@@ -2,32 +2,30 @@
 date_default_timezone_set('Asia/Kuala_Lumpur');
 session_start();
 
-// Sekatan keselamatan portal doktor
+// Only doctor can access the page
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'doctor') {
     header("Location: ../login.php");
     exit();
 }
 require '../db_connect.php';
 
-// Ambil maklumat doktor yang sedang log masuk
+// Get doctor info who logged in
 $doctorID = $_SESSION['userID'];
 $doctor_name = isset($_SESSION['name']) ? $_SESSION['name'] : 'Doctor';
 
-// Susunan kolum sorting yang dibenarkan (Diselaraskan dengan manage_documents)
 $sort_column = isset($_GET['sort']) ? $_GET['sort'] : 'createdAt';
 $sort_order = isset($_GET['order']) ? $_GET['order'] : 'DESC';
 $allowed_columns = ['docID', 'patientName', 'documentType', 'issueDate', 'createdAt'];
 if (!in_array($sort_column, $allowed_columns)) { $sort_column = 'createdAt'; }
 $sort_order = ($sort_order === 'ASC') ? 'ASC' : 'DESC';
 
-// ─── DIBAIKI: KEPUTUSAN STATUS IKUT ARAHAN SV (TIADA EXPIRED BAGI REKOD SAH) ───
 function getDisplayStatus($status) {
     $statusUpper = strtoupper(trim($status));
     if ($statusUpper == 'REVOKED') return 'Revoked';
     return 'Active'; 
 }
 
-// Combine both table mc and timeslip dengan sokongan Sorting Kolum Dinamik
+// Combine both table mc and timeslip 
 $sql = "SELECT * FROM (
             SELECT mcID AS docID, patientName, 'MC' AS documentType, startDate AS issueDate, endDate AS expiryDate, status, createdAt, documentHash 
             FROM mc 

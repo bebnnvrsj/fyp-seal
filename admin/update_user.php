@@ -1,13 +1,13 @@
 <?php
 session_start();
-// Sekatan Keselamatan: Hanya benarkan Admin mengakses halaman ini
+// Only admin users can access this page
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../login/login.php");
     exit();
 }
-require '../db_connect.php'; 
+require '../db_connect.php';  
 
-// 1. SEMAK PARAMETER ID DARIPADA URL
+// Validate and retrieve user ID from URL parameter; redirect if missing to prevent invalid access
 if (!isset($_GET['id'])) {
     header("Location: user_management.php");
     exit();
@@ -15,7 +15,7 @@ if (!isset($_GET['id'])) {
 
 $id = intval($_GET['id']);
 
-// 2. AMBIL DATA SEMASA PENGGUNA TERSEBUT
+// Retrieve current user details from the database for the selected user record
 $sql = "SELECT * FROM users WHERE userID = ?";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("i", $id);
@@ -315,7 +315,7 @@ if (!$user) {
         }
     }
 
-    // Intersep Borang Dengan Animasi Konfirmasi SweetAlert2
+    // Intercept form submission and trigger SweetAlert2 confirmation animation dialog
     document.getElementById('updateUserForm').addEventListener('submit', function(e) {
         e.preventDefault();
         

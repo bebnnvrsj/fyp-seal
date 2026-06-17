@@ -295,7 +295,7 @@
     }
 
     Swal.fire({
-        icon: iconType, // Gunakan pembolehubah dinamik
+        icon: iconType, 
         title: title,
         text: message,
         confirmButtonColor: '#2b7a9e',

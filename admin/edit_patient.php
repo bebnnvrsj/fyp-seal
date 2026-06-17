@@ -1,6 +1,6 @@
 <?php
 session_start();
-// Sekatan Keselamatan Eksklusif: Hanya benarkan Admin mengakses halaman ini
+// Only admin users can access this page
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../login/login.php");
     exit();
@@ -19,13 +19,13 @@ if ($patientID > 0) {
     $patient = $stmt->get_result()->fetch_assoc();
 }
 
-// Jika ID tidak sah atau data tiada dalam pangkalan data, tendang balik
+// Reject if patient record not found for the given ID
 if (!$patient) {
     header("Location: user_management.php?msg=patient_not_found");
     exit();
 }
 
-// PROSES PENGEMASAN KINI DATA (POST SUBMISSION)
+// POST SUBMISSION HANDLER
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $full_name = trim($_POST['full_name']);
     $ic_passport = trim($_POST['ic_passport']);
@@ -41,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $up_stmt->bind_param("ssssi", $full_name, $ic_passport, $matric_staff_no, $email, $patientID);
         
         if ($up_stmt->execute()) {
-            // CASCADING UPDATE (Opsional): Kemas kini nama & no matrik lama dalam rekod perubatan untuk kekalkan konsistensi data
+            // Update legacy patient name and matric number to maintain data consistency in medical records
             $old_matric = $patient['matric_staff_no'];
             
             $update_mc = $conn->prepare("UPDATE mc SET patientName = ?, matric_staff_no = ? WHERE matric_staff_no = ?");
@@ -96,9 +96,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .sidebar-menu li a { padding: 15px 25px; display: flex; align-items: center; gap: 15px; color: #d1d9e6; text-decoration: none; transition: 0.2s; }
         .sidebar-menu li a:hover { background-color: #2b7a9e; color: white; }
         .sidebar-menu li a.active { background-color: #2b7a9e; color: white; border-left: 4px solid #fff; }
-
+        .sidebar.closed { transform: translateX(-100%);}
+        
         /* ====== MAIN WRAPPER ====== */
-        .main-wrapper { flex: 1; display: flex; flex-direction: column; margin-left: var(--sidebar-width); width: 100%; }
+        .main-wrapper { flex: 1; display: flex; flex-direction: column; margin-left: var(--sidebar-width); width: calc(100% - var(--sidebar-width)); transition: margin-left 0.3s ease, width 0.3s ease; }
+        .main-wrapper.full-width { margin-left: 0; width: 100%;}
         .header { height: 56px; background-color: var(--header-bg); display: flex; align-items: center; padding: 0 24px; color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
 
         /* ====== CONTAINER & CARD ====== */
@@ -227,7 +229,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 <body>
 
-<div class="sidebar">
+<div class="sidebar" id="sidebar">
     <div class="sidebar-header"><i class="fa-solid fa-user-shield"></i> <span>SEAL</span></div>
     <ul class="sidebar-menu">
         <li><a href="../admin/home_admin.php"><i class="fa-solid fa-house"></i> Dashboard</a></li>
@@ -240,9 +242,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </ul>
 </div>
 
-<div class="main-wrapper">
+<div class="main-wrapper" id="mainWrapper">
     <div class="header">
-        <span style="font-weight: 600; font-size: 16px;">Patient Data Maintenance</span>
+        <div class="header-left">
+            <i class="fa-solid fa-bars toggle-btn" onclick="toggleSidebar()"></i>
+            <span style="font-weight: 600; margin-left: 15px;">Administrator Portal</span>
+        </div>
     </div>
 
     <div class="container">
@@ -299,6 +304,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script>
+    function toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const mainWrapper = document.getElementById('mainWrapper');
+        sidebar.classList.toggle('closed');
+        mainWrapper.classList.toggle('full-width');
+    }
     // Penyerahan Borang Interaktif dengan SweetAlert2
     document.getElementById('editPatientForm').addEventListener('submit', function(e) {
         e.preventDefault();

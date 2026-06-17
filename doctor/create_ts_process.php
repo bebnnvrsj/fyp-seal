@@ -1,10 +1,8 @@
 <?php
 use Dompdf\Dompdf;
 use Dompdf\Options;
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
 
-// PANGGIL FAIL RAHSIA DARI FOLDER UTAMA (ROOT)
+// CALL THE HIDDEN CONFIGURATION FILE FROM THE ROOT DIRECTORY
 if (file_exists('../config_smtp.php')) {
     require_once '../config_smtp.php';
 } else {
@@ -19,7 +17,7 @@ require 'vendor/autoload.php';
 date_default_timezone_set('Asia/Kuala_Lumpur');
 set_time_limit(120); 
 
-// Sekatan keselamatan eksklusif portal doktor
+// SECURITY RESTRICTION: Exclusive access for the Doctor role
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'doctor') {
     header("Location: ../login.php");
     exit();
@@ -34,7 +32,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $dr_result = $stmt_dr->get_result()->fetch_assoc();
     $doctorName = $dr_result['name'] ?? "Medical Officer";
 
-    // Sanitasi parameter input form
+    // Sanitize input form parameters
     $patientName  = mysqli_real_escape_string($conn, $_POST['full_name']);
     $patientNRIC  = mysqli_real_escape_string($conn, $_POST['patientNRIC']); 
     $matric_no    = mysqli_real_escape_string($conn, $_POST['matric_staff_no']);
@@ -46,27 +44,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $endTime      = date("H:i:s", strtotime($_POST['time_out']));
     $currentTime  = date("H:i:s");
 
-    // Formatkan string tarikh untuk penjanaan PDF & Hashing
+    // Format date and time strings for PDF generation & Hashing (Verified Recipe)
     $visitDateStr = date('d F Y', strtotime($visitDate));
     $startTimeStr = date("h:i A", strtotime($startTime));
     $endTimeStr   = date("h:i A", strtotime($endTime));
 
-    // Bina rawData penjajaran blok digital (Wajib sama dengan skrip verifier)
+    // Construct rawData block structural alignment (Must perfectly match the verifier script)
     $rawData = trim($patientNRIC) . trim($visitDateStr) . trim($startTimeStr) . trim($endTimeStr) . trim($doctorID) . trim($currentTime);    
     $documentHash = hash('sha256', $rawData);
 
     // =========================================================================
-    // ⚙️ AUTOMATED TAMPER DETECTION: BINA PAYLOAD KRIPTOGRAFI
+    // ⚙️ AUTOMATED TAMPER DETECTION: CONSTRUCT CRYPTOGRAPHIC PAYLOAD
     // =========================================================================
     $raw_payload = $documentHash . '|' . $patientName . '|' . $matric_no . '|' . $startTime;
     $encrypted_payload = base64_encode($raw_payload);
 
-    // Simpan payload ini ke dalam session untuk kegunaan generate_pdf.php
+    // Save this payload into session for generate_pdf.php consumption
     $_SESSION['pdf_qr_payload'] = $encrypted_payload;
     $_SESSION['pdf_doc_hash'] = $documentHash;
 
     // =========================================================================
-    // ⛓️ INTERAKSI BLOCKCHAIN ENGINE: HIGH-SPEED API cURL CALL (RENDER DRIVEN)
+    // ⛓️ BLOCKCHAIN ENGINE INTERACTION: HIGH-SPEED API cURL CALL (RENDER DRIVEN)
     // =========================================================================
     $nodeApiUrl = "https://seal-backend-hakf.onrender.com/register-hash";
     $postData = json_encode(['hash' => $documentHash]);
@@ -93,32 +91,30 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
     
-    // 💡 MEKANISMA ROBUST FALLBACK JIKA NOD BLOCKCHAIN OFFLINE SEMASA TESTING
+    // 💡 ROBUST FALLBACK MECHANISM IF BLOCKCHAIN NODE IS OFFLINE DURING TESTING
     if (empty($blockchainTx) || substr($blockchainTx, 0, 2) !== '0x') {
         error_log("SEAL Blockchain Gateway Offline (Time-Slip): " . $apiResponse);
         $blockchainTx = "0x" . hash('sha256', $documentHash . time() . "TS_LOCAL_FALLBACK_MOCK");
     }
 
-    // Sistem Signature Digital SEAL untuk Sijil Masa (Time-Slip)
+    // SEAL Digital Signature System for Time-Slip
     $systemSig = "SYSTEM_TS_SIG_" . bin2hex(random_bytes(16));
 
-    // Bina DateTime seragam menggunakan waktu semasa PHP
+    // Construct a uniform DateTime string using local PHP current time
     $currentDate = date("Y-m-d");
     $combinedDateTime = $currentDate . " " . $currentTime;
 
     $conn->begin_transaction();
     try {
-        // ─── 🟢 DIBAIKI MUKTAMAD: Memasukkan kolum digitalSignature ke dalam rantaian INSERT SQL ───
         $sql = "INSERT INTO timeslip (doctorID, patientName, patientNRIC, matric_staff_no, patientEmail, visitDate, timeIn, timeOut, diagnosis, documentHash, digitalSignature, transactionHash, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', ?)";
         $stmt = $conn->prepare($sql);
         
-        // 💡 DIBAIKI MUKTAMAD: Menambah parameter string "s" baharu dan mengikat $systemSig mengikut giliran kolum
         $stmt->bind_param("issssssssssss", $doctorID, $patientName, $patientNRIC, $matric_no, $patientEmail, $visitDate, $startTime, $endTime, $diagnosis, $documentHash, $systemSig, $blockchainTx, $combinedDateTime);
         $stmt->execute(); 
         
         $newTSID = $conn->insert_id;
         
-        // Jalankan mutasi pembinaan blok ledger internal audit
+        // Execute internal audit ledger blockchain record generation mutations
         $sql_block = "INSERT INTO blockchainrecord (documentHash, previousHash, blockHash) VALUES (?, ?, ?)";
         $stmt_block = $conn->prepare($sql_block);
         $prevHashSql = $conn->query("SELECT blockHash FROM blockchainrecord ORDER BY transactionID DESC LIMIT 1");
@@ -130,7 +126,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         $conn->commit();
 
-        // Rekod transaksi ke dalam audit log pengguna
+        // Record transaction details into user activity audit logs
         $auditAction = "CREATE TIMESLIP";
         $formattedTSID = "TSUTHM" . str_pad($newTSID, 6, "0", STR_PAD_LEFT);
         $auditResource = "Doc ID: " . $formattedTSID . " (NRIC: " . $patientNRIC . ")";        
@@ -141,7 +137,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt_audit->execute();
         
         // =========================================================================
-        // 📄 ENGINE PENJANAAN PDF (DOMPDF) & PENGHANTARAN EMEL (PHPMAILER)
+        // 📄 PDF GENERATION ENGINE (DOMPDF) & EMAIL DISPATCH (BREVO HTTP API)
         // =========================================================================
         if (!empty($patientEmail) && filter_var($patientEmail, FILTER_VALIDATE_EMAIL)) {
             try {
@@ -265,24 +261,42 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $dompdf->render();
                 $pdfOutput = $dompdf->output();
 
-                $mail = new PHPMailer(true);
-                $mail->isSMTP(); 
-                $mail->Host = 'smtp.gmail.com'; 
-                $mail->SMTPAuth = true;
-                $mail->Username = SMTP_USER; 
-                $mail->Password = SMTP_PASS;
-                $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS; 
-                $mail->Port = 587;
-                $mail->setFrom('no-reply@seal.com', 'SEAL Medical Portal');
-                $mail->addAddress($patientEmail, $patientName);
-                $mail->isHTML(true);
-                $mail->Subject = 'Digital Time-Slip - ' . strtoupper($patientName);
-                $mail->Body = "Hello $patientName,<br><br>Attached is your digital Time-Slip ID: TSUTHM" . str_pad($newTSID, 6, "0", STR_PAD_LEFT);    
-                $mail->addStringAttachment($pdfOutput, "TimeSlip_{$patientNRIC}.pdf");
-                $mail->send();
+                // ====== BREVO API ROUTING (BYPASSES WEB HOST OUTBOUND SMTP TRAFFIC CONTROLS) ======
+                $base64_pdf = base64_encode($pdfOutput);
 
-            } catch (Exception $e) { 
-                error_log("Email Error: " . $mail->ErrorInfo); 
+                $emailData = [
+                    "sender" => ["name" => "SEAL Medical Portal", "email" => "adamuqrii@gmail.com"],
+                    "to" => [["email" => $patientEmail, "name" => $patientName]],
+                    "subject" => 'Digital Time-Slip - ' . strtoupper($patientName),
+                    "htmlContent" => "Hello " . htmlspecialchars($patientName) . ",<br><br>Attached is your digital Time-Slip ID: TSUTHM" . str_pad($newTSID, 6, "0", STR_PAD_LEFT),
+                    "attachment" => [
+                        [
+                            "content" => $base64_pdf,
+                            "name" => "TimeSlip_{$patientNRIC}.pdf"
+                        ]
+                    ]
+                ];
+
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, 'https://api.brevo.com/v3/smtp/email');
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($emailData));
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'accept: application/json',
+                    'api-key: ' . BREVO_API_KEY, 
+                    'content-type: application/json'
+                ]);
+
+                $apiResponse = curl_exec($ch);
+                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+
+                if ($httpCode < 200 || $httpCode >= 300) {
+                    error_log("Brevo API TimeSlip Dispatch Error Code: " . $httpCode . " | Response: " . $apiResponse);
+                }
+            } catch (Exception $innerEx) {
+                error_log("TimeSlip PDF/Email Error: " . $innerEx->getMessage());
             }
         } 
 
